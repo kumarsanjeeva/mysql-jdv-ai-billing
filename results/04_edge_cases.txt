@@ -1,12 +1,484 @@
--- run_sql.py -- 2026-09-25 21:53:02 UTC
+-- run_sql.py -- 2026-09-25 21:58:33 UTC
 -- file: sql\04_edge_cases.sql
 -- connecting user: per test, see below
 -- host: localhost:3306  (database chosen by the file's own USE)
 ======================================================================
-ID             DESCRIPTION                                                      EXPECT      ACTUAL      VERDICT
-E25            agent changes a payment amount through order_dv                  ERROR 1644  ERROR 1644  PASS
-E26            admin changes a payment amount with a direct UPDATE on payments  ERROR 1644  ERROR 1644  PASS
-E25_E26_CHECK  payment amount is still 500.00 after E25 and E26                 OK          OK          PASS
+ID             DESCRIPTION                                                                       EXPECT      ACTUAL      VERDICT
+E01            stale etag: second UPDATE reuses the etag the first one replaced                  ERROR 6494  ERROR 6494  PASS
+E02            omitted item: write the order back without one of its two items                   ERROR 6498  ERROR 6498  PASS
+E03            omitted payment: write the order back without one of its payments                 ERROR 6498  ERROR 6498  PASS
+E04            agent changes a product price through catalog_dv (SELECT-only grant)              ERROR 1142  ERROR 1142  PASS
+E04b           admin changes a product price through catalog_dv (view has no UPDATE annotation)  ERROR 6497  ERROR 6497  PASS
+E05            primary key change: document written back with a different _id                    ERROR 6496  ERROR 6496  PASS
+E06            multi-document UPDATE: one statement sets the status of every business-1 order    ERROR       ERROR 6482  PASS
+E07            INSERT ... SELECT into order_dv (a valid new document, supplied by a SELECT)      ERROR       ERROR 6482  PASS
+E08            INSERT ... ON DUPLICATE KEY UPDATE on order_dv (existing document as an upsert)   ERROR       ERROR 6482  PASS
+E09            EXPLAIN SELECT on order_dv as admin                                               OK          OK          PASS
+E09b           EXPLAIN SELECT on order_dv as the agent (no grants on the underlying tables)      ERROR 1345  ERROR 1345  PASS
+E09c           EXPLAIN UPDATE on order_dv as admin                                               ERROR       ERROR 6482  PASS
+E10            new order referencing a product id that does not exist                            ERROR 6491  ERROR 6491  PASS
+E11            cross-tenant reference: business-1 order for a business-2 customer (GUARD 4)      ERROR 1644  ERROR 1644  PASS
+E12            agent (grants on views only) inserts and updates an order through order_dv        OK          OK          PASS
+E13            agent SELECTs a base table directly                                               ERROR 1142  ERROR 1142  PASS
+E15            second order with an already-used request_id                                      ERROR 1062  ERROR 1062  PASS
+E16            new payment without an id next to existing payments (generated/explicit mix)      ERROR 6560  ERROR 6560  PASS
+E17            new payment with an explicit id given as a value (@next_id)                       OK          OK          PASS
+E18            new payment with an explicit id from a subquery inside the UPDATE (E24)           ERROR 6560  ERROR 6560  PASS
+REFUND1        agent inserts a -500.00 refund for seed-order-002 through payment_dv              OK          OK          PASS
+REFUND2        refund with a positive amount (CHECK chk_payments_amount_sign)                    ERROR 3819  ERROR 3819  PASS
+E25            agent changes a payment amount through order_dv                                   ERROR 1644  ERROR 1644  PASS
+E26            admin changes a payment amount with a direct UPDATE on payments                   ERROR 1644  ERROR 1644  PASS
+E25_E26_CHECK  payment amount is still 500.00 after E25 and E26                                  OK          OK          PASS
+
+
+--- E01: stale etag: second UPDATE reuses the etag the first one replaced (as jdv_agent) ---
+EXPECT: ERROR 6494  ACTUAL: ERROR 6494  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-001');
+SELECT JSON_VALUE(@doc, '$._metadata.etag') AS etag_read;
+UPDATE order_dv SET data = JSON_SET(@doc, '$.order_status', 'ready')
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+SELECT JSON_VALUE(data, '$._metadata.etag') AS etag_after_first_update
+  FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-001';
+UPDATE order_dv SET data = JSON_SET(@doc, '$.order_status', 'delivered')
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+STDOUT:
++----------------------------------+
+| etag_read                        |
++----------------------------------+
+| 4ed09940872c099a99b12de445e34cb8 |
++----------------------------------+
++----------------------------------+
+| etag_after_first_update          |
++----------------------------------+
+| 97d5fc4c3d5de3ab764719c1d3933c1e |
++----------------------------------+
+STDERR:
+ERROR 6494 (HY000) at line 9: Cannot update JSON duality view. The ETAG of the document in the database did not match the ETAG '"4ed09940872c099a99b12de445e34cb8"' passed in.
+
+
+--- E02: omitted item: write the order back without one of its two items (as jdv_agent) ---
+EXPECT: ERROR 6498  ACTUAL: ERROR 6498  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001');
+SELECT JSON_LENGTH(@doc, '$.items') AS items_before;
+UPDATE order_dv SET data = JSON_REMOVE(@doc, '$.items[1]')
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+STDOUT:
++--------------+
+| items_before |
++--------------+
+|            2 |
++--------------+
+STDERR:
+ERROR 6498 (HY000) at line 5: Missing DELETE tag on table `jdv_ai_billing`.`order_items`, path '$.items[1]'.
+
+
+--- E03: omitted payment: write the order back without one of its payments (as jdv_agent) ---
+EXPECT: ERROR 6498  ACTUAL: ERROR 6498  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001');
+SELECT JSON_LENGTH(@doc, '$.payments') AS payments_before;
+UPDATE order_dv SET data = JSON_REMOVE(@doc, '$.payments[0]')
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+STDOUT:
++-----------------+
+| payments_before |
++-----------------+
+|               2 |
++-----------------+
+STDERR:
+ERROR 6498 (HY000) at line 5: Missing DELETE tag on table `jdv_ai_billing`.`payments`, path '$.payments[0]'.
+
+
+--- E04: agent changes a product price through catalog_dv (SELECT-only grant) (as jdv_agent) ---
+EXPECT: ERROR 1142  ACTUAL: ERROR 1142  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM catalog_dv WHERE JSON_VALUE(data, '$.name') = 'Black Forest Cake');
+UPDATE catalog_dv SET data = JSON_SET(@doc, '$.price', 1.00)
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1142 (42000) at line 4: UPDATE command denied to user 'jdv_agent'@'localhost' for table 'catalog_dv'
+
+
+--- E04b: admin changes a product price through catalog_dv (view has no UPDATE annotation) (as jdv_admin) ---
+EXPECT: ERROR 6497  ACTUAL: ERROR 6497  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM catalog_dv WHERE JSON_VALUE(data, '$.name') = 'Black Forest Cake');
+UPDATE catalog_dv SET data = JSON_SET(@doc, '$.price', 1.00)
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 6497 (HY000) at line 4: Missing UPDATE tag on `jdv_ai_billing`.`products`.price, path '$.price'.
+
+
+--- E05: primary key change: document written back with a different _id (as jdv_agent) ---
+EXPECT: ERROR 6496  ACTUAL: ERROR 6496  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001');
+UPDATE order_dv SET data = JSON_SET(@doc, '$._id', 999999)
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 6496 (HY000) at line 4: Cannot update primary key column `jdv_ai_billing`.`orders`.id from path '$._id'.
+
+
+--- E06: multi-document UPDATE: one statement sets the status of every business-1 order (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 6482  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SELECT COUNT(*) AS business1_orders FROM order_dv WHERE JSON_VALUE(data, '$.business_id') = 1;
+UPDATE order_dv SET data = JSON_SET(data, '$.order_status', 'ready')
+ WHERE JSON_VALUE(data, '$.business_id') = 1;
+SELECT ROW_COUNT() AS rows_affected;
+ROLLBACK;
+STDOUT:
++------------------+
+| business1_orders |
++------------------+
+|                5 |
++------------------+
+STDERR:
+ERROR 6482 (0A000) at line 4: Multiple object update is not supported for JSON Duality Views.
+
+
+--- E07: INSERT ... SELECT into order_dv (a valid new document, supplied by a SELECT) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 6482  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv
+SELECT CAST('{"business_id":1,"request_id":"e07-insert-select","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Black Forest Cake","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":1},"product_variant_id":2}]}' AS JSON);
+SELECT COUNT(*) AS e07_orders FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'e07-insert-select';
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 6482 (0A000) at line 3: INSERT... SELECT is not supported for JSON Duality Views.
+
+
+--- E08: INSERT ... ON DUPLICATE KEY UPDATE on order_dv (existing document as an upsert) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 6482  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001');
+INSERT INTO order_dv VALUES (JSON_SET(@doc, '$.order_status', 'ready'))
+ON DUPLICATE KEY UPDATE data = VALUES(data);
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 6482 (0A000) at line 4: INSERT... ON DUPLICATE KEY UPDATE is not supported for JSON Duality Views.
+
+
+--- E09: EXPLAIN SELECT on order_dv as admin (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+EXPLAIN SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001';
+STDOUT:
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| EXPLAIN                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| -> Filter: (json_value(order_dv.`data`, '$.request_id' returning char(512)) = 'h01-demo-001')  (cost=3.18 rows=6)
+    -> Table scan on order_dv  (cost=2.66..4.81 rows=6)
+        -> Materialize  (cost=2.23..2.23 rows=6)
+            -> Table scan on orders  (cost=0.85 rows=6)
+            -> Select #7 (subquery in projection; dependent)
+                -> Single-row index lookup on outlets using PRIMARY (id = orders.outlet_id)  (cost=0.35 rows=1)
+            -> Select #6 (subquery in projection; dependent)
+                -> Single-row index lookup on customers using PRIMARY (id = orders.customer_id)  (cost=0.35 rows=1)
+            -> Select #4 (subquery in projection; dependent)
+                -> Aggregate: json_arrayagg(json_duality_object( WITH (INSERT,UPDATE) 'id':order_items.id,'name':order_items.`name`,'flavor':order_items.flavor,'size':order_items.size,'unit':order_items.unit,'qty':order_items.qty,'price':order_items.price,'gst_rate':order_items.gst_rate,'is_gst_inclusive':order_items.is_gst_inclusive,'gst_applicable':order_items.gst_applicable,'discount_exempt':order_items.discount_exempt,'gst_value':order_items.gst_value,'discount_value':order_items.discount_value,'notes':order_items.notes,'product':(select #5),'product_variant_id':order_items.product_variant_id))  (cost=0.613 rows=1)
+                    -> Filter: (order_items.order_id = orders.id)  (cost=0.36 rows=1.1)
+                        -> Table scan on order_items  (cost=0.36 rows=11)
+                -> Select #5 (subquery in projection; dependent)
+                    -> Single-row index lookup on products using PRIMARY (id = order_items.product_id)  (cost=0.35 rows=1)
+            -> Select #3 (subquery in projection; dependent)
+                -> Aggregate: json_arrayagg(json_duality_object( WITH (INSERT,UPDATE) 'id':payments.id,'business_id':payments.business_id,'request_id':payments.request_id,'payment_type':payments.payment_type,'method':payments.method,'amount':payments.amount,'paid_at':payments.paid_at))  (cost=0.58 rows=1)
+                    -> Filter: (payments.order_id = orders.id)  (cost=0.35 rows=1)
+                        -> Table scan on payments  (cost=0.35 rows=8)
+ |
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+Note (Code 1276): Field or reference 'jdv_ai_billing.orders.outlet_id' of SELECT #7 was resolved in SELECT #2
+Note (Code 1276): Field or reference 'jdv_ai_billing.orders.customer_id' of SELECT #6 was resolved in SELECT #2
+Note (Code 1276): Field or reference 'jdv_ai_billing.order_items.product_id' of SELECT #5 was resolved in SELECT #4
+Note (Code 1276): Field or reference 'jdv_ai_billing.orders.id' of SELECT #4 was resolved in SELECT #2
+Note (Code 1276): Field or reference 'jdv_ai_billing.orders.id' of SELECT #3 was resolved in SELECT #2
+STDERR:
+
+
+--- E09b: EXPLAIN SELECT on order_dv as the agent (no grants on the underlying tables) (as jdv_agent) ---
+EXPECT: ERROR 1345  ACTUAL: ERROR 1345  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+EXPLAIN SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001';
+STDOUT:
+STDERR:
+ERROR 1345 (HY000) at line 2: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table
+
+
+--- E09c: EXPLAIN UPDATE on order_dv as admin (as jdv_admin) ---
+EXPECT: ERROR  ACTUAL: ERROR 6482  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001');
+EXPLAIN UPDATE order_dv SET data = JSON_SET(@doc, '$.order_status', 'ready')
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+STDOUT:
+Note (Code 1276): Field or reference 'jdv_ai_billing.orders.outlet_id' of SELECT #7 was resolved in SELECT #2
+Note (Code 1276): Field or reference 'jdv_ai_billing.orders.customer_id' of SELECT #6 was resolved in SELECT #2
+Note (Code 1276): Field or reference 'jdv_ai_billing.order_items.product_id' of SELECT #5 was resolved in SELECT #4
+Note (Code 1276): Field or reference 'jdv_ai_billing.orders.id' of SELECT #4 was resolved in SELECT #2
+Note (Code 1276): Field or reference 'jdv_ai_billing.orders.id' of SELECT #3 was resolved in SELECT #2
+Error (Code 6482): EXPLAIN for INSERT/UPDATE/DELETE is not supported for JSON Duality Views.
+STDERR:
+ERROR 6482 (0A000) at line 3: EXPLAIN for INSERT/UPDATE/DELETE is not supported for JSON Duality Views.
+
+
+--- E10: new order referencing a product id that does not exist (as jdv_agent) ---
+EXPECT: ERROR 6491  ACTUAL: ERROR 6491  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e10-no-product","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Phantom Cake","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":999999}}]}');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 6491 (HY000) at line 3: Read-only subobject with path '$.items[0].product', maps to row where `jdv_ai_billing`.`products`.id = (999999), which does not exist.
+
+
+--- E11: cross-tenant reference: business-1 order for a business-2 customer (GUARD 4) (as jdv_agent) ---
+EXPECT: ERROR 1644  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @other_customer = (SELECT JSON_VALUE(data, '$._id') FROM customer_dv WHERE JSON_VALUE(data, '$.phone') = '9900000004');
+SELECT @other_customer AS vikram_customer_id,
+       (SELECT JSON_VALUE(data, '$.business_id') FROM customer_dv WHERE JSON_VALUE(data, '$.phone') = '9900000004') AS vikram_business_id;
+INSERT INTO order_dv VALUES(JSON_SET('{"business_id":1,"request_id":"e11-cross-tenant","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Black Forest Cake","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":1},"product_variant_id":2}]}',
+    '$.customer.id', CAST(@other_customer AS UNSIGNED)));
+ROLLBACK;
+
+-- ------------------------------------------------------------
+-- The agent's privilege boundary
+-- ------------------------------------------------------------
+STDOUT:
++--------------------+--------------------+
+| vikram_customer_id | vikram_business_id |
++--------------------+--------------------+
+| 4                  | 2                  |
++--------------------+--------------------+
+STDERR:
+ERROR 1644 (45000) at line 6: GUARD 4: orders.customer_id does not belong to orders.business_id
+
+
+--- E12: agent (grants on views only) inserts and updates an order through order_dv (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SHOW GRANTS;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e12-agent-dml","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Black Forest Cake","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":1},"product_variant_id":2}]}');
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'e12-agent-dml');
+UPDATE order_dv SET data = JSON_SET(@doc, '$.order_status', 'ready')
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+SELECT JSON_VALUE(data, '$.order_status') AS e12_status FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'e12-agent-dml';
+ROLLBACK;
+STDOUT:
++--------------------------------------------------------------------------------+
+| Grants for jdv_agent@%                                                         |
++--------------------------------------------------------------------------------+
+| GRANT USAGE ON *.* TO `jdv_agent`@`%`                                          |
+| GRANT SELECT ON `jdv_ai_billing`.`catalog_dv` TO `jdv_agent`@`%`               |
+| GRANT SELECT ON `jdv_ai_billing`.`customer_dv` TO `jdv_agent`@`%`              |
+| GRANT SELECT, INSERT, UPDATE ON `jdv_ai_billing`.`order_dv` TO `jdv_agent`@`%` |
+| GRANT SELECT, INSERT ON `jdv_ai_billing`.`payment_dv` TO `jdv_agent`@`%`       |
++--------------------------------------------------------------------------------+
++------------+
+| e12_status |
++------------+
+| ready      |
++------------+
+STDERR:
+
+
+--- E13: agent SELECTs a base table directly (as jdv_agent) ---
+EXPECT: ERROR 1142  ACTUAL: ERROR 1142  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SELECT id, total FROM orders LIMIT 1;
+
+-- ------------------------------------------------------------
+-- Idempotency
+-- ------------------------------------------------------------
+STDOUT:
+STDERR:
+ERROR 1142 (42000) at line 2: SELECT command denied to user 'jdv_agent'@'localhost' for table 'orders'
+
+
+--- E15: second order with an already-used request_id (as jdv_agent) ---
+EXPECT: ERROR 1062  ACTUAL: ERROR 1062  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"h01-demo-001","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Black Forest Cake","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":1},"product_variant_id":2}]}');
+ROLLBACK;
+
+-- ------------------------------------------------------------
+-- AUTO_INCREMENT rules: appending a payment to order_dv.payments
+-- (order h01-demo-001 already has two payments)
+-- ------------------------------------------------------------
+STDOUT:
+STDERR:
+ERROR 1062 (23000) at line 3: Duplicate entry 'h01-demo-001' for key 'orders.uq_orders_request_id'
+
+
+--- E16: new payment without an id next to existing payments (generated/explicit mix) (as jdv_agent) ---
+EXPECT: ERROR 6560  ACTUAL: ERROR 6560  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001');
+UPDATE order_dv SET data = JSON_ARRAY_APPEND(@doc, '$.payments', JSON_OBJECT(
+    'business_id', 1, 'request_id', 'e16-payment', 'payment_type', 'installment', 'method', 'cash', 'amount', 10.00))
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 6560 (HY000) at line 4: Paths $.payments[0] and $.payments[2] use generated and explicit values for the same primary key, which is not allowed.
+
+
+--- E17: new payment with an explicit id given as a value (@next_id) (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001');
+SET @next_id = (SELECT MAX(id) + 1 FROM payments);
+SELECT @next_id AS explicit_new_payment_id;
+UPDATE order_dv SET data = JSON_ARRAY_APPEND(@doc, '$.payments', JSON_OBJECT(
+    'id', @next_id, 'business_id', 1, 'request_id', 'e17-payment', 'payment_type', 'installment', 'method', 'cash', 'amount', 10.00))
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+SELECT id, request_id, amount FROM payments WHERE order_id = JSON_VALUE(@doc, '$._id') ORDER BY id;
+ROLLBACK;
+STDOUT:
++-------------------------+
+| explicit_new_payment_id |
++-------------------------+
+|                       9 |
++-------------------------+
++----+---------------------+---------+
+| id | request_id          | amount  |
++----+---------------------+---------+
+|  7 | h01-payment-advance |  500.00 |
+|  8 | h04-payment-final   | 1012.00 |
+|  9 | e17-payment         |   10.00 |
++----+---------------------+---------+
+STDERR:
+
+
+--- E18: new payment with an explicit id from a subquery inside the UPDATE (E24) (as jdv_admin) ---
+EXPECT: ERROR 6560  ACTUAL: ERROR 6560  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001');
+UPDATE order_dv SET data = JSON_ARRAY_APPEND(@doc, '$.payments', JSON_OBJECT(
+    'id', (SELECT AUTO_INCREMENT FROM information_schema.tables WHERE table_schema = 'jdv_ai_billing' AND table_name = 'payments'),
+    'business_id', 1, 'request_id', 'e18-payment', 'payment_type', 'installment', 'method', 'cash', 'amount', 10.00))
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+
+-- ------------------------------------------------------------
+-- Refunds: a payment is corrected with a new refund payment, never edited
+-- ------------------------------------------------------------
+STDOUT:
+STDERR:
+ERROR 6560 (HY000) at line 4: Paths $.payments[2] and $.payments[0] use generated and explicit values for the same primary key, which is not allowed.
+
+
+--- REFUND1: agent inserts a -500.00 refund for seed-order-002 through payment_dv (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @order_id = (SELECT JSON_VALUE(data, '$._id') FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-002');
+INSERT INTO payment_dv VALUES(JSON_OBJECT(
+    'business_id', 1, 'request_id', 'refund1-seed-order-002', 'payment_type', 'refund',
+    'method', 'upi', 'amount', -500.00, 'order', JSON_OBJECT('id', CAST(@order_id AS UNSIGNED))));
+SELECT JSON_PRETTY(data) AS refund_payment FROM payment_dv WHERE JSON_VALUE(data, '$.request_id') = 'refund1-seed-order-002';
+SELECT JSON_EXTRACT(data, '$.payments') AS order_payments FROM order_dv WHERE JSON_VALUE(data, '$._id') = @order_id;
+ROLLBACK;
+STDOUT:
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| refund_payment                                                                                                                                                                                                                                                                                                                                                                             |
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {
+  "_id": 10,
+  "order": {
+    "id": 2,
+    "total": 1312.50,
+    "request_id": "seed-order-002",
+    "order_status": "delivered"
+  },
+  "amount": -500.00,
+  "method": "upi",
+  "paid_at": "2026-09-26 03:28:33.618261",
+  "_metadata": {
+    "etag": "d80b0ec86a1bc4ba7ae513de68a00a64"
+  },
+  "request_id": "refund1-seed-order-002",
+  "business_id": 1,
+  "payment_type": "refund"
+} |
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| order_payments                                                                                                                                                                                                                                                                                                                                      |
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| [{"id": 1, "amount": 500.00, "method": "upi", "paid_at": "2026-09-14 12:00:00.000000", "request_id": "seed-payment-001", "business_id": 1, "payment_type": "advance"}, {"id": 10, "amount": -500.00, "method": "upi", "paid_at": "2026-09-26 03:28:33.618261", "request_id": "refund1-seed-order-002", "business_id": 1, "payment_type": "refund"}] |
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+STDERR:
+
+
+--- REFUND2: refund with a positive amount (CHECK chk_payments_amount_sign) (as jdv_agent) ---
+EXPECT: ERROR 3819  ACTUAL: ERROR 3819  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @order_id = (SELECT JSON_VALUE(data, '$._id') FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-002');
+INSERT INTO payment_dv VALUES(JSON_OBJECT(
+    'business_id', 1, 'request_id', 'refund2-seed-order-002', 'payment_type', 'refund',
+    'method', 'upi', 'amount', 500.00, 'order', JSON_OBJECT('id', CAST(@order_id AS UNSIGNED))));
+ROLLBACK;
+
+-- ------------------------------------------------------------
+-- GUARD 5: payments are immutable once inserted (sql/01_schema.sql,
+-- trg_payments_guard_immutable). Target: seed-payment-001, the 500.00 UPI
+-- advance on seed-order-002.
+-- ------------------------------------------------------------
+STDOUT:
+STDERR:
+ERROR 3819 (HY000) at line 4: Check constraint 'chk_payments_amount_sign' is violated.
 
 
 --- E25: agent changes a payment amount through order_dv (as jdv_agent) ---

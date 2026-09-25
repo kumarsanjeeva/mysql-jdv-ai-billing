@@ -8,7 +8,7 @@
 --
 -- Reuses the seed data's Sunrise Bakers / MG Road / Priya Sharma / Black
 -- Forest Cake / Chocolate Truffle Pastry — the same order agent/scenarios.py
--- narrates in Phase 4, so the SQL demo and the agent demo tell one story.
+-- narrates, so the SQL demo and the agent demo tell one story.
 -- ============================================================
 
 USE __MYSQL_DB__;

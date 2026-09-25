@@ -8,6 +8,6 @@
 # Usage:
 #     python -m agent.agent
 #
-# Requires ANTHROPIC_API_KEY and ANTHROPIC_MODEL in .env. Written in Phase 4.
+# Requires ANTHROPIC_API_KEY and ANTHROPIC_MODEL in .env. Planned.
 
-raise NotImplementedError("agent/agent.py is implemented in Phase 4")
+raise NotImplementedError("agent/agent.py is not implemented yet")

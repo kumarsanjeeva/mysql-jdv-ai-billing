@@ -1,6 +1,6 @@
 # Blog outline
 
-_Written in Phase 5._
+_Planned._
 
 Will map each blog section to the repo artifact that proves it, for the
 dbadataverse.com submission to the Oracle "Build AI-Friendly Applications with

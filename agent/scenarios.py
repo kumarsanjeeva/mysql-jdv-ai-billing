@@ -10,6 +10,6 @@
 # Usage:
 #     python -m agent.scenarios
 #
-# Output is saved to results/agent_scenarios.txt. Written in Phase 4.
+# Output is saved to results/agent_scenarios.txt. Planned.
 
-raise NotImplementedError("agent/scenarios.py is implemented in Phase 4")
+raise NotImplementedError("agent/scenarios.py is not implemented yet")

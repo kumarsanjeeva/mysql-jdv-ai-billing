@@ -1,14 +1,73 @@
 # Findings
 
-_The full table is written in Phase 5, from the edge-case runs in
-`sql/04_edge_cases.sql` and `results/`._
+Every entry below comes from a script that was run against MySQL 9.7.2, with
+its output captured in `results/`.
 
-Will list one row per test ID (E01-E14, plus H01-H07) with: expected result,
-actual result (quoted error code/message where relevant), verdict, and what it
-means for developers building on JSON Duality Views. Surprises -- anything that
-didn't match the documented behavior -- will be called out explicitly.
+## Edge cases -- `sql/04_edge_cases.sql`
 
-## Recorded so far (MySQL 9.7.2)
+Evidence: `results/04_edge_cases.txt`. Run after `scripts/reset_db.py` and
+`sql/03_dml_demos.sql`. Each block that writes runs in a transaction and is
+rolled back. Expected codes were taken from the server's error catalog
+(`perror`) before the run; where the catalog offered more than one plausible
+code, the test expected "any error" and the actual code is recorded here.
+All 25 tests matched their expectation.
+
+| ID | Test | Who | Result |
+|---|---|---|---|
+| E01 | Second UPDATE sends the etag the first UPDATE replaced | agent | `ERROR 6494`: The ETAG of the document in the database did not match the ETAG ... passed in. (The first UPDATE succeeded; the etag changed.) |
+| E02 | Order written back without one of its two items | agent | `ERROR 6498`: Missing DELETE tag on table `order_items`, path '$.items[1]'. |
+| E03 | Order written back without one of its payments | agent | `ERROR 6498`: Missing DELETE tag on table `payments`, path '$.payments[0]'. |
+| E04 | Product price changed through `catalog_dv` | agent | `ERROR 1142`: UPDATE command denied ... for table 'catalog_dv' (SELECT-only grant). |
+| E04b | Same change | admin | `ERROR 6497`: Missing UPDATE tag on `products`.price, path '$.price' (the view has no UPDATE annotation). |
+| E05 | Document written back with a different `_id` | agent | `ERROR 6496`: Cannot update primary key column `orders`.id from path '$._id'. |
+| E06 | One UPDATE changing every business-1 order | agent | `ERROR 6482`: Multiple object update is not supported for JSON Duality Views. |
+| E07 | `INSERT ... SELECT` of a valid new document | agent | `ERROR 6482`: INSERT... SELECT is not supported for JSON Duality Views. |
+| E08 | `INSERT ... ON DUPLICATE KEY UPDATE` as an upsert | agent | `ERROR 6482`: INSERT... ON DUPLICATE KEY UPDATE is not supported for JSON Duality Views. |
+| E09 | `EXPLAIN SELECT` on `order_dv` | admin | OK -- a plan is returned. |
+| E09b | `EXPLAIN SELECT` on `order_dv` | agent | `ERROR 1345`: EXPLAIN/SHOW can not be issued; lacking privileges for underlying table. |
+| E09c | `EXPLAIN UPDATE` on `order_dv` | admin | `ERROR 6482`: EXPLAIN for INSERT/UPDATE/DELETE is not supported for JSON Duality Views. |
+| E10 | New order whose item references product id 999999 | agent | `ERROR 6491`: Read-only subobject with path '$.items[0].product', maps to row where `products`.id = (999999), which does not exist. |
+| E11 | Business-1 order for a business-2 customer | agent | `ERROR 1644`: GUARD 4: orders.customer_id does not belong to orders.business_id. |
+| E12 | Agent (grants on the four views only, none on tables) inserts an order, then updates it | agent | OK -- the order reads back with the new status. |
+| E13 | Direct `SELECT` on the `orders` table | agent | `ERROR 1142`: SELECT command denied ... for table 'orders'. |
+| E15 | Second order with an already-used `request_id` | agent | `ERROR 1062`: Duplicate entry 'h01-demo-001' for key 'orders.uq_orders_request_id'. |
+| E16 | Payment appended to `order_dv.payments` without an id | agent | `ERROR 6560`: Paths $.payments[0] and $.payments[2] use generated and explicit values for the same primary key. |
+| E17 | Payment appended with an explicit id given as a value (`@next_id`) | admin | OK -- the payment row is created next to the two existing ones. |
+| E18 | Payment appended with its id from a subquery inside the UPDATE | admin | `ERROR 6560` (as E24). |
+| REFUND1 | -500.00 `refund` inserted through `payment_dv` | agent | OK -- the refund appears in `payment_dv` and in the order's `payments`. |
+| REFUND2 | `refund` with a positive amount | agent | `ERROR 3819`: Check constraint 'chk_payments_amount_sign' is violated. |
+| E25 | Payment amount changed through `order_dv` | agent | `ERROR 1644`: GUARD 5: payments are immutable once inserted. |
+| E26 | Payment amount changed with a direct `UPDATE payments` | admin | `ERROR 1644`: GUARD 5 (same message). |
+| check | Payment re-read after E25/E26 | agent | amount still 500.00. |
+
+What this means:
+
+- **E01-E03, E05:** the document is the unit of change. An etag must match;
+  leaving something out of an array means "delete it", which the view refuses
+  unless it allows DELETE; primary keys cannot be changed.
+- **E04/E04b, E12/E13:** two independent layers stop writes. Grants decide
+  what the agent may touch at all (views yes, tables no); annotations decide
+  what a view allows even for an admin.
+- **E06-E08:** one document per statement. Bulk updates, `INSERT ... SELECT`
+  and upserts are not available through a duality view; use SQL on the base
+  tables for those (as an admin, not the agent).
+- **E09 / E09b / E09c:** `EXPLAIN SELECT` works on a duality view for an
+  account with rights on the underlying tables; `EXPLAIN UPDATE` fails with
+  6482 for everyone; and the agent cannot EXPLAIN at all, because it has no
+  rights on the underlying tables. Plan analysis therefore needs a separate
+  DBA account -- it cannot be done with the agent's credentials.
+- **E10, E11, E15, REFUND2:** the database rejects bad references, cross-
+  tenant orders (GUARD 4), duplicate requests and wrong-signed refunds before
+  anything is stored -- the agent's code does not have to check any of these.
+- **E16-E18:** appending to an AUTO_INCREMENT-keyed array needs an explicit
+  id given as a value (see E24). E17 works only since GUARD 5/design B (E23),
+  which stopped existing payments' `paid_at` from blocking the write.
+  `payment_dv` remains the practical path, since a client cannot know the
+  next id in advance.
+- **REFUND1, E25/E26:** payments are corrected by a new refund row, never by
+  editing one.
+
+## Other findings
 
 ### E20 -- a nested read-only reference that reads back as `null` cannot be written back
 

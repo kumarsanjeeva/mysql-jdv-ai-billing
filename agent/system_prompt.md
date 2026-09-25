@@ -1,6 +1,6 @@
 # Billing agent system prompt
 
-_Written in Phase 4._
+_Planned._
 
 Will instruct the agent: it is a bakery billing assistant; it may only act
 through its tools (never invent data or bypass them); it must confirm order

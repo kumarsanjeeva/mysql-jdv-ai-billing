@@ -1,6 +1,6 @@
 # JSON Duality Views reference
 
-_Written in Phase 5._
+_Planned._
 
 Will document each duality view (`order_dv`, `catalog_dv`, `customer_dv`):
 purpose, consumer, the annotated SQL from `sql/02_duality_views.sql`, a real
@@ -26,6 +26,7 @@ That is the intended rule, not a side effect: a payment is a financial
 record, and it is corrected with a new `refund` payment, never edited. A
 wrong 500.00 payment stays on the order; a refund of -500.00 (and, if
 needed, a new correct payment) is inserted next to it, so the history of
-what happened is kept. (The `payments` CHECK constraint requires refund
-amounts to be negative. Inserting a refund through `payment_dv` is the
-intended path but is not yet exercised by a test.)
+what happened is kept. Refunds go in through `payment_dv` like any other
+payment; the agent inserting a -500.00 refund works (REFUND1), and the
+`payments` CHECK constraint rejects a refund with a positive amount
+(REFUND2, `ERROR 3819`).

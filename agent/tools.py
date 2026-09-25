@@ -8,7 +8,7 @@
 # validate, compute totals, or reshape documents; if MySQL rejects a write,
 # the tool returns MySQL's error text to the model so it can correct itself.
 #
-# Planned tools (Phase 4): search_catalog, get_customer, get_order,
+# Planned tools: search_catalog, get_customer, get_order,
 # create_order, add_payment, update_order_status.
 #
 # Conventions for every tool:
@@ -23,4 +23,4 @@
 # - Each create-order / add-payment intent carries one request_id, reused on
 #   retries, so the UNIQUE constraint in the database blocks duplicates.
 
-raise NotImplementedError("agent/tools.py is implemented in Phase 4")
+raise NotImplementedError("agent/tools.py is not implemented yet")

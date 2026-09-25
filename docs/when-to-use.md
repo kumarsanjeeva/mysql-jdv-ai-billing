@@ -1,6 +1,6 @@
 # When to use JSON Duality Views
 
-_Written in Phase 5, from `docs/findings.md`._
+_Planned, from `docs/findings.md`._
 
 Will cover: JDV vs. JSON columns vs. hand-built `JSON_OBJECT`/`JSON_ARRAYAGG`
 vs. an ORM (comparison table across integrity, write path, concurrency,

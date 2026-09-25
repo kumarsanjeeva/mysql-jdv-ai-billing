@@ -26,7 +26,7 @@ reporting queries continue to use the base tables directly, as before.
 
 ## What the demo proves
 
-_(Populated in Phase 3/5 from real, captured test runs — see
+_(Planned: populated from real, captured test runs — see
 [`docs/findings.md`](docs/findings.md) once written.)_
 
 ## Quick start
@@ -58,8 +58,8 @@ docs/           architecture, schema, duality-view reference, findings, guidance
 
 ## The duality views
 
-_(Table populated in Phase 5, from [`docs/duality-views.md`](docs/duality-views.md)
-once the views are designed, approved, and built.)_
+_(Planned: table populated from [`docs/duality-views.md`](docs/duality-views.md)
+once the views are documented.)_
 
 | View | Root | Nested | Annotations | Purpose |
 |------|------|--------|-------------|---------|
@@ -67,7 +67,7 @@ once the views are designed, approved, and built.)_
 
 ## Sample: one order document
 
-_(A real document from `results/`, added after Phase 3.)_
+_(Planned: a real document from `results/`.)_
 
 ## When to use / not use JDV
 
