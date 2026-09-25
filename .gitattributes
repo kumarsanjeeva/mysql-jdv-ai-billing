@@ -1,0 +1,18 @@
+# Normalize line endings to LF for text files, regardless of OS checkout settings.
+* text=auto eol=lf
+
+*.sql text eol=lf
+*.py  text eol=lf
+*.md  text eol=lf
+*.txt text eol=lf
+*.cfg text eol=lf
+*.editorconfig text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+
+# Binary / do-not-touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.svg -text

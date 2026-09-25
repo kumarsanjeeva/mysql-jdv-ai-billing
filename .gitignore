@@ -216,3 +216,53 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---------------------------------------------------------------------------
+# mysql-jdv-ai-billing project rules
+# ---------------------------------------------------------------------------
+
+# Private working folder (never committed)
+# Only its own README is committed, so the folder's purpose is documented.
+reference-local/*
+!reference-local/README.md
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.cnf
+.mylogin.cnf
+*.pem
+*.key
+secrets/
+
+# MySQL local artifacts
+*.sql.bak
+dumps/
+*.dump
+.mysql_history
+
+# Claude Code / AI tool local state
+.claude/settings.local.json
+.cursor/
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Scratch
+tmp/
+*.log
+*.tmp
+
+# NOTE: results/ is intentionally NOT ignored — captured command output there
+# is the proof behind this project's claims and is committed on purpose.

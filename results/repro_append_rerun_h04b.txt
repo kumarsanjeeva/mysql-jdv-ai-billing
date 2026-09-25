@@ -1,0 +1,11 @@
+-- run_sql.py -- 2026-09-25 21:01:58 UTC
+-- file: results\repro_append_rerun_h04b.sql
+-- connecting user: jdv_admin
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
++----------------+
+| AUTO_INCREMENT |
++----------------+
+|              9 |
++----------------+
+ERROR 6560 (HY000) at line 19: Paths $.payments[2] and $.payments[0] use generated and explicit values for the same primary key, which is not allowed.

@@ -1,0 +1,4 @@
+-- run_sql.py ??? 2026-09-25 20:30:01 UTC
+-- connecting user: jdv_admin
+-- host: localhost:3306  db: jdv_ai_billing
+======================================================================

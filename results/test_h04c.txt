@@ -1,0 +1,12 @@
+-- run_sql.py ??? 2026-09-25 20:28:35 UTC
+-- connecting user: jdv_admin
+-- host: localhost:3306  db: jdv_ai_billing
+======================================================================
++----+
+| id |
++----+
+| 10 |
++----+
+Warning (Code 6493): ETAG missing for updated value
+Error (Code 6560): Paths $.payments[0] and $.payments[1] use generated and explicit values for the same primary key, which is not allowed.
+ERROR 6560 (HY000) at line 4: Paths $.payments[0] and $.payments[1] use generated and explicit values for the same primary key, which is not allowed.

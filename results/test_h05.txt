@@ -1,0 +1,5 @@
+-- run_sql.py ??? 2026-09-25 20:40:27 UTC
+-- connecting user: jdv_admin
+-- host: localhost:3306  db: jdv_ai_billing
+======================================================================
+ERROR 6495 (HY000) at line 4: Value was not provided for path '$.items[1]' and could not be inferred for column `jdv_ai_billing`.`order_items`.product_variant_id.

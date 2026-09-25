@@ -1,0 +1,10 @@
+-- 04_edge_cases.sql
+-- Purpose: edge cases and limits of DML through duality views (E01-E14) --
+--          the raw material for docs/findings.md. Every test that is
+--          expected to fail is wrapped with:
+--            -- TEST: E0x <name>
+--            -- EXPECT: ERROR | OK
+--          so scripts/run_sql.py can run the whole file with --force and
+--          report PASS/FAIL/SURPRISE per test.
+--
+-- Written in Phase 3, after the happy-path demos are working.

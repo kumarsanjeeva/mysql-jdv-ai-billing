@@ -1,0 +1,161 @@
+-- run_sql.py -- 2026-09-25 20:49:56 UTC
+-- file: results\repro_array_order_swap.sql
+-- connecting user: per test, see below
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
+ID     DESCRIPTION                                     EXPECT  ACTUAL  VERDICT
+SETUP  create swap tables and view                     OK      OK      PASS
+SWAP1  reversed array, no content change               OK      OK      PASS
+SWAP2  reversed array, edit label of new index 0 (C2)  OK      OK      PASS
+
+
+--- SETUP: create swap tables and view (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_repro_scratch;
+DROP VIEW IF EXISTS swap_parent_dv;
+DROP TABLE IF EXISTS swap_child;
+DROP TABLE IF EXISTS swap_parent;
+CREATE TABLE swap_parent (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL
+) ENGINE=InnoDB;
+CREATE TABLE swap_child (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    parent_id BIGINT UNSIGNED NOT NULL,
+    label VARCHAR(50) NOT NULL,
+    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    CONSTRAINT fk_swap_child_parent FOREIGN KEY (parent_id) REFERENCES swap_parent(id)
+) ENGINE=InnoDB;
+CREATE JSON DUALITY VIEW swap_parent_dv AS
+SELECT JSON_DUALITY_OBJECT( WITH(INSERT, UPDATE)
+    '_id': id,
+    'name': name,
+    'children': (
+        SELECT JSON_ARRAYAGG(
+            JSON_DUALITY_OBJECT( WITH(INSERT, UPDATE)
+                'id': id,
+                'label': label
+            )
+        )
+        FROM swap_child WHERE swap_child.parent_id = swap_parent.id
+    )
+)
+FROM swap_parent;
+STDOUT:
+Note (Code 1051): Unknown table 'jdv_repro_scratch.swap_parent_dv'
+Note (Code 1051): Unknown table 'jdv_repro_scratch.swap_child'
+Note (Code 1051): Unknown table 'jdv_repro_scratch.swap_parent'
+STDERR:
+
+
+--- SWAP1: reversed array, no content change (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_repro_scratch;
+INSERT INTO swap_parent_dv VALUES('{"name":"S1","children":[{"label":"C1"},{"label":"C2"}]}');
+SET @doc = (SELECT data FROM swap_parent_dv WHERE JSON_VALUE(data, '$.name') = 'S1');
+SELECT @doc AS before_doc;
+SELECT id, label, updated_at FROM swap_child
+ WHERE parent_id = JSON_VALUE(@doc, '$._id') ORDER BY id;
+DO SLEEP(0.01);
+SET @swapped = JSON_SET(@doc,
+    '$.children[0]', JSON_EXTRACT(@doc, '$.children[1]'),
+    '$.children[1]', JSON_EXTRACT(@doc, '$.children[0]'));
+SELECT @swapped AS sent_doc;
+UPDATE swap_parent_dv SET data = @swapped
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@swapped, '$._id');
+SELECT ROW_COUNT() AS rows_affected;
+SELECT data AS after_doc FROM swap_parent_dv WHERE JSON_VALUE(data, '$.name') = 'S1';
+SELECT id, label, updated_at FROM swap_child
+ WHERE parent_id = JSON_VALUE(@doc, '$._id') ORDER BY id;
+STDOUT:
++-------------------------------------------------------------------------------------------------------------------------------------------------------+
+| before_doc                                                                                                                                            |
++-------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 1, "name": "S1", "children": [{"id": 1, "label": "C1"}, {"id": 2, "label": "C2"}], "_metadata": {"etag": "fa1836c1eb2ee3f51afe56f5e31b7620"}} |
++-------------------------------------------------------------------------------------------------------------------------------------------------------+
++----+-------+----------------------------+
+| id | label | updated_at                 |
++----+-------+----------------------------+
+|  1 | C1    | 2026-09-26 02:19:56.757294 |
+|  2 | C2    | 2026-09-26 02:19:56.757294 |
++----+-------+----------------------------+
++-------------------------------------------------------------------------------------------------------------------------------------------------------+
+| sent_doc                                                                                                                                              |
++-------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 1, "name": "S1", "children": [{"id": 2, "label": "C2"}, {"id": 1, "label": "C1"}], "_metadata": {"etag": "fa1836c1eb2ee3f51afe56f5e31b7620"}} |
++-------------------------------------------------------------------------------------------------------------------------------------------------------+
++---------------+
+| rows_affected |
++---------------+
+|             0 |
++---------------+
++-------------------------------------------------------------------------------------------------------------------------------------------------------+
+| after_doc                                                                                                                                             |
++-------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 1, "name": "S1", "children": [{"id": 1, "label": "C1"}, {"id": 2, "label": "C2"}], "_metadata": {"etag": "fa1836c1eb2ee3f51afe56f5e31b7620"}} |
++-------------------------------------------------------------------------------------------------------------------------------------------------------+
++----+-------+----------------------------+
+| id | label | updated_at                 |
++----+-------+----------------------------+
+|  1 | C1    | 2026-09-26 02:19:56.757294 |
+|  2 | C2    | 2026-09-26 02:19:56.757294 |
++----+-------+----------------------------+
+STDERR:
+
+
+--- SWAP2: reversed array, edit label of new index 0 (C2) (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_repro_scratch;
+INSERT INTO swap_parent_dv VALUES('{"name":"S2","children":[{"label":"C1"},{"label":"C2"}]}');
+SET @doc = (SELECT data FROM swap_parent_dv WHERE JSON_VALUE(data, '$.name') = 'S2');
+SELECT @doc AS before_doc;
+SELECT id, label, updated_at FROM swap_child
+ WHERE parent_id = JSON_VALUE(@doc, '$._id') ORDER BY id;
+DO SLEEP(0.01);
+SET @swapped = JSON_SET(@doc,
+    '$.children[0]', JSON_SET(JSON_EXTRACT(@doc, '$.children[1]'), '$.label', 'C2-edited'),
+    '$.children[1]', JSON_EXTRACT(@doc, '$.children[0]'));
+SELECT @swapped AS sent_doc;
+UPDATE swap_parent_dv SET data = @swapped
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@swapped, '$._id');
+SELECT ROW_COUNT() AS rows_affected;
+SELECT data AS after_doc FROM swap_parent_dv WHERE JSON_VALUE(data, '$.name') = 'S2';
+SELECT id, label, updated_at FROM swap_child
+ WHERE parent_id = JSON_VALUE(@doc, '$._id') ORDER BY id;
+STDOUT:
++-------------------------------------------------------------------------------------------------------------------------------------------------------+
+| before_doc                                                                                                                                            |
++-------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 2, "name": "S2", "children": [{"id": 3, "label": "C1"}, {"id": 4, "label": "C2"}], "_metadata": {"etag": "b5e9640886fd2a5e0ddb4a3afce1e9aa"}} |
++-------------------------------------------------------------------------------------------------------------------------------------------------------+
++----+-------+----------------------------+
+| id | label | updated_at                 |
++----+-------+----------------------------+
+|  3 | C1    | 2026-09-26 02:19:56.888524 |
+|  4 | C2    | 2026-09-26 02:19:56.888524 |
++----+-------+----------------------------+
++--------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| sent_doc                                                                                                                                                     |
++--------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 2, "name": "S2", "children": [{"id": 4, "label": "C2-edited"}, {"id": 3, "label": "C1"}], "_metadata": {"etag": "b5e9640886fd2a5e0ddb4a3afce1e9aa"}} |
++--------------------------------------------------------------------------------------------------------------------------------------------------------------+
++---------------+
+| rows_affected |
++---------------+
+|             1 |
++---------------+
++--------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| after_doc                                                                                                                                                    |
++--------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 2, "name": "S2", "children": [{"id": 3, "label": "C1"}, {"id": 4, "label": "C2-edited"}], "_metadata": {"etag": "82e66839c8c9109f9f2bc0f239d92003"}} |
++--------------------------------------------------------------------------------------------------------------------------------------------------------------+
++----+-----------+----------------------------+
+| id | label     | updated_at                 |
++----+-----------+----------------------------+
+|  3 | C1        | 2026-09-26 02:19:56.888524 |
+|  4 | C2-edited | 2026-09-26 02:19:56.904491 |
++----+-----------+----------------------------+
+STDERR:

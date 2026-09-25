@@ -1,0 +1,121 @@
+-- run_sql.py -- 2026-09-25 21:02:46 UTC
+-- file: results\repro_append_bisect.sql
+-- connecting user: per test, see below
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
+ID    DESCRIPTION                                                                             EXPECT  ACTUAL  VERDICT
+B0    verbatim original (inline information_schema subquery for id)                           ERROR   ERROR   PASS
+B1    peeked id read into @next_id first (as the scratch repro does)                          ERROR   ERROR   PASS
+B2    inline subquery kept, new payment given its required request_id                         ERROR   ERROR   PASS
+B3    id as a hardcoded literal (value taken from the B1 output)                              ERROR   ERROR   PASS
+B4    minimal scratch view (repro_append_explicit_ids.sql) with the id as an inline subquery  OK      ERROR   SURPRISE
+
+
+--- B0: verbatim original (inline information_schema subquery for id) (as jdv_admin) ---
+EXPECT: ERROR  ACTUAL: ERROR  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001');
+SELECT JSON_OBJECT('id', (SELECT AUTO_INCREMENT FROM information_schema.tables WHERE table_schema = 'jdv_ai_billing' AND table_name = 'payments')) AS new_element_as_built;
+UPDATE order_dv
+SET data = JSON_ARRAY_APPEND(@doc, '$.payments', JSON_OBJECT(
+    'id', (SELECT AUTO_INCREMENT FROM information_schema.tables WHERE table_schema = 'jdv_ai_billing' AND table_name = 'payments'),
+    'business_id', 1, 'payment_type', 'final', 'method', 'cash', 'amount', 1012.00
+))
+WHERE JSON_VALUE(@doc, '$._id') = JSON_VALUE(data, '$._id');
+ROLLBACK;
+STDOUT:
++----------------------+
+| new_element_as_built |
++----------------------+
+| {"id": 9}            |
++----------------------+
+STDERR:
+ERROR 6560 (HY000) at line 5: Paths $.payments[2] and $.payments[0] use generated and explicit values for the same primary key, which is not allowed.
+
+
+--- B1: peeked id read into @next_id first (as the scratch repro does) (as jdv_admin) ---
+EXPECT: ERROR  ACTUAL: ERROR  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001');
+SET @next_id = (SELECT AUTO_INCREMENT FROM information_schema.tables WHERE table_schema = 'jdv_ai_billing' AND table_name = 'payments');
+SELECT @next_id AS next_id;
+UPDATE order_dv
+SET data = JSON_ARRAY_APPEND(@doc, '$.payments', JSON_OBJECT(
+    'id', @next_id,
+    'business_id', 1, 'payment_type', 'final', 'method', 'cash', 'amount', 1012.00
+))
+WHERE JSON_VALUE(@doc, '$._id') = JSON_VALUE(data, '$._id');
+ROLLBACK;
+STDOUT:
++---------+
+| next_id |
++---------+
+|       9 |
++---------+
+STDERR:
+ERROR 6497 (HY000) at line 6: Missing UPDATE tag on `jdv_ai_billing`.`payments`.paid_at, path '$.payments[0].paid_at'.
+
+
+--- B2: inline subquery kept, new payment given its required request_id (as jdv_admin) ---
+EXPECT: ERROR  ACTUAL: ERROR  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001');
+UPDATE order_dv
+SET data = JSON_ARRAY_APPEND(@doc, '$.payments', JSON_OBJECT(
+    'id', (SELECT AUTO_INCREMENT FROM information_schema.tables WHERE table_schema = 'jdv_ai_billing' AND table_name = 'payments'),
+    'business_id', 1, 'request_id', 'bisect-b2', 'payment_type', 'final', 'method', 'cash', 'amount', 1012.00
+))
+WHERE JSON_VALUE(@doc, '$._id') = JSON_VALUE(data, '$._id');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 6560 (HY000) at line 4: Paths $.payments[2] and $.payments[0] use generated and explicit values for the same primary key, which is not allowed.
+
+
+--- B3: id as a hardcoded literal (value taken from the B1 output) (as jdv_admin) ---
+EXPECT: ERROR  ACTUAL: ERROR  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'h01-demo-001');
+SELECT AUTO_INCREMENT AS next_id FROM information_schema.tables WHERE table_schema = 'jdv_ai_billing' AND table_name = 'payments';
+UPDATE order_dv
+SET data = JSON_ARRAY_APPEND(@doc, '$.payments', JSON_OBJECT(
+    'id', 9,
+    'business_id', 1, 'payment_type', 'final', 'method', 'cash', 'amount', 1012.00
+))
+WHERE JSON_VALUE(@doc, '$._id') = JSON_VALUE(data, '$._id');
+ROLLBACK;
+STDOUT:
++---------+
+| next_id |
++---------+
+|       9 |
++---------+
+STDERR:
+ERROR 6497 (HY000) at line 5: Missing UPDATE tag on `jdv_ai_billing`.`payments`.paid_at, path '$.payments[0].paid_at'.
+
+
+--- B4: minimal scratch view (repro_append_explicit_ids.sql) with the id as an inline subquery (as jdv_admin) ---
+EXPECT: OK  ACTUAL: ERROR  VERDICT: SURPRISE
+SQL:
+USE jdv_repro_scratch;
+START TRANSACTION;
+INSERT INTO parent_dv VALUES('{"name":"P-B4","children":[{"label":"C1"}]}');
+SET @doc = (SELECT data FROM parent_dv WHERE JSON_VALUE(data, '$.name') = 'P-B4');
+UPDATE parent_dv
+SET data = JSON_ARRAY_APPEND(@doc, '$.children', JSON_OBJECT(
+    'id', (SELECT AUTO_INCREMENT FROM information_schema.tables WHERE table_schema = 'jdv_repro_scratch' AND table_name = 'child'),
+    'label', 'C2'))
+WHERE JSON_VALUE(@doc, '$._id') = JSON_VALUE(data, '$._id');
+SELECT data AS after_update FROM parent_dv WHERE JSON_VALUE(data, '$.name') = 'P-B4';
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 6560 (HY000) at line 5: Paths $.children[1] and $.children[0] use generated and explicit values for the same primary key, which is not allowed.

@@ -1,0 +1,10 @@
+-- run_sql.py ??? 2026-09-25 20:26:44 UTC
+-- connecting user: jdv_admin
+-- host: localhost:3306  db: jdv_ai_billing
+======================================================================
++-----------------+
+| payments_before |
++-----------------+
+|               1 |
++-----------------+
+ERROR 6498 (HY000) at line 5: Missing DELETE tag on table `jdv_ai_billing`.`payments`, path '$.payments[0]'.

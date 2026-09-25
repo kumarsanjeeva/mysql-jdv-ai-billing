@@ -1,0 +1,206 @@
+-- run_sql.py -- 2026-09-25 20:49:57 UTC
+-- file: results\repro_null_singleton_update.sql
+-- connecting user: per test, see below
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
+ID     DESCRIPTION                                                      EXPECT  ACTUAL  VERDICT
+SETUP  create tables and both views                                     OK      OK      PASS
+NS1    nested ref, one child ref NULL, verbatim round trip              OK      ERROR   SURPRISE
+NS2    nested ref, one child ref NULL, null key removed before write    OK      ERROR   SURPRISE
+NS3    control, nested ref, every child has a ref, verbatim round trip  OK      OK      PASS
+NS4    workaround, scalar ref_id, one child NULL, verbatim round trip   OK      OK      PASS
+NS5    workaround consequence, scalar ref_id is writable (NULL -> 1)    OK      OK      PASS
+
+
+--- SETUP: create tables and both views (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_repro_scratch;
+DROP VIEW IF EXISTS ns_parent_dv, ns_parent_scalar_dv;
+DROP TABLE IF EXISTS ns_child;
+DROP TABLE IF EXISTS ns_parent;
+DROP TABLE IF EXISTS ns_ref;
+CREATE TABLE ns_ref (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    label VARCHAR(50) NOT NULL
+) ENGINE=InnoDB;
+CREATE TABLE ns_parent (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL
+) ENGINE=InnoDB;
+CREATE TABLE ns_child (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    parent_id BIGINT UNSIGNED NOT NULL,
+    ref_id BIGINT UNSIGNED NULL,
+    label VARCHAR(50) NOT NULL,
+    CONSTRAINT fk_ns_child_parent FOREIGN KEY (parent_id) REFERENCES ns_parent(id),
+    CONSTRAINT fk_ns_child_ref FOREIGN KEY (ref_id) REFERENCES ns_ref(id)
+) ENGINE=InnoDB;
+INSERT INTO ns_ref (label) VALUES ('R1');
+
+-- Nested read-only singleton (the order_dv.items[].product_variant shape).
+CREATE JSON DUALITY VIEW ns_parent_dv AS
+SELECT JSON_DUALITY_OBJECT( WITH(INSERT, UPDATE)
+    '_id': id,
+    'name': name,
+    'children': (
+        SELECT JSON_ARRAYAGG(
+            JSON_DUALITY_OBJECT( WITH(INSERT, UPDATE)
+                'id': id,
+                'label': label,
+                'ref': (
+                    SELECT JSON_DUALITY_OBJECT('id': id, 'label': label)
+                    FROM ns_ref WHERE ns_ref.id = ns_child.ref_id
+                )
+            )
+        )
+        FROM ns_child WHERE ns_child.parent_id = ns_parent.id
+    )
+)
+FROM ns_parent;
+
+-- Workaround shape: the FK as a flat scalar field on the child.
+CREATE JSON DUALITY VIEW ns_parent_scalar_dv AS
+SELECT JSON_DUALITY_OBJECT( WITH(INSERT, UPDATE)
+    '_id': id,
+    'name': name,
+    'children': (
+        SELECT JSON_ARRAYAGG(
+            JSON_DUALITY_OBJECT( WITH(INSERT, UPDATE)
+                'id': id,
+                'label': label,
+                'ref_id': ref_id
+            )
+        )
+        FROM ns_child WHERE ns_child.parent_id = ns_parent.id
+    )
+)
+FROM ns_parent;
+STDOUT:
+Note (Code 1051): Unknown table 'jdv_repro_scratch.ns_parent_dv'
+Note (Code 1051): Unknown table 'jdv_repro_scratch.ns_parent_scalar_dv'
+Note (Code 1051): Unknown table 'jdv_repro_scratch.ns_child'
+Note (Code 1051): Unknown table 'jdv_repro_scratch.ns_parent'
+Note (Code 1051): Unknown table 'jdv_repro_scratch.ns_ref'
+STDERR:
+
+
+--- NS1: nested ref, one child ref NULL, verbatim round trip (as jdv_admin) ---
+EXPECT: OK  ACTUAL: ERROR  VERDICT: SURPRISE
+SQL:
+USE jdv_repro_scratch;
+INSERT INTO ns_parent_dv VALUES('{"name":"NS1","children":[{"label":"A","ref":{"id":1}},{"label":"B"}]}');
+SET @doc = (SELECT data FROM ns_parent_dv WHERE JSON_VALUE(data, '$.name') = 'NS1');
+SELECT @doc AS read_back;
+UPDATE ns_parent_dv SET data = JSON_SET(@doc, '$.name', 'NS1-renamed')
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+SELECT data AS after_update FROM ns_parent_dv WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+STDOUT:
++----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| read_back                                                                                                                                                                                          |
++----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 1, "name": "NS1", "children": [{"id": 1, "ref": {"id": 1, "label": "R1"}, "label": "A"}, {"id": 2, "ref": null, "label": "B"}], "_metadata": {"etag": "06d4441f3c90ee35691552a09d1beea7"}} |
++----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+STDERR:
+ERROR 6495 (HY000) at line 5: Value was not provided for path '$.children[1]' and could not be inferred for column `jdv_repro_scratch`.`ns_child`.ref_id.
+
+
+--- NS2: nested ref, one child ref NULL, null key removed before write (as jdv_admin) ---
+EXPECT: OK  ACTUAL: ERROR  VERDICT: SURPRISE
+SQL:
+USE jdv_repro_scratch;
+INSERT INTO ns_parent_dv VALUES('{"name":"NS2","children":[{"label":"A","ref":{"id":1}},{"label":"B"}]}');
+SET @doc = (SELECT data FROM ns_parent_dv WHERE JSON_VALUE(data, '$.name') = 'NS2');
+SELECT @doc AS read_back;
+SET @sent = JSON_SET(JSON_REMOVE(@doc, '$.children[1].ref'), '$.name', 'NS2-renamed');
+SELECT @sent AS sent_doc;
+UPDATE ns_parent_dv SET data = @sent
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@sent, '$._id');
+SELECT data AS after_update FROM ns_parent_dv WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+STDOUT:
++----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| read_back                                                                                                                                                                                          |
++----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 2, "name": "NS2", "children": [{"id": 3, "ref": {"id": 1, "label": "R1"}, "label": "A"}, {"id": 4, "ref": null, "label": "B"}], "_metadata": {"etag": "c39564c127593eceb689276dac431f8b"}} |
++----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| sent_doc                                                                                                                                                                                      |
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 2, "name": "NS2-renamed", "children": [{"id": 3, "ref": {"id": 1, "label": "R1"}, "label": "A"}, {"id": 4, "label": "B"}], "_metadata": {"etag": "c39564c127593eceb689276dac431f8b"}} |
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+STDERR:
+ERROR 6495 (HY000) at line 7: Value was not provided for path '$.children[1]' and could not be inferred for column `jdv_repro_scratch`.`ns_child`.ref_id.
+
+
+--- NS3: control, nested ref, every child has a ref, verbatim round trip (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_repro_scratch;
+INSERT INTO ns_parent_dv VALUES('{"name":"NS3","children":[{"label":"A","ref":{"id":1}},{"label":"B","ref":{"id":1}}]}');
+SET @doc = (SELECT data FROM ns_parent_dv WHERE JSON_VALUE(data, '$.name') = 'NS3');
+SELECT @doc AS read_back;
+UPDATE ns_parent_dv SET data = JSON_SET(@doc, '$.name', 'NS3-renamed')
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+SELECT data AS after_update FROM ns_parent_dv WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+STDOUT:
++------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| read_back                                                                                                                                                                                                              |
++------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 3, "name": "NS3", "children": [{"id": 5, "ref": {"id": 1, "label": "R1"}, "label": "A"}, {"id": 6, "ref": {"id": 1, "label": "R1"}, "label": "B"}], "_metadata": {"etag": "51be36e30322790ae3d2714bfaae66d2"}} |
++------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| after_update                                                                                                                                                                                                                   |
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 3, "name": "NS3-renamed", "children": [{"id": 5, "ref": {"id": 1, "label": "R1"}, "label": "A"}, {"id": 6, "ref": {"id": 1, "label": "R1"}, "label": "B"}], "_metadata": {"etag": "9177e99122e7623426d7d2b97666818a"}} |
++--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+STDERR:
+
+
+--- NS4: workaround, scalar ref_id, one child NULL, verbatim round trip (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_repro_scratch;
+INSERT INTO ns_parent_scalar_dv VALUES('{"name":"NS4","children":[{"label":"A","ref_id":1},{"label":"B"}]}');
+SET @doc = (SELECT data FROM ns_parent_scalar_dv WHERE JSON_VALUE(data, '$.name') = 'NS4');
+SELECT @doc AS read_back;
+UPDATE ns_parent_scalar_dv SET data = JSON_SET(@doc, '$.name', 'NS4-renamed')
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+SELECT data AS after_update FROM ns_parent_scalar_dv WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+SELECT id, label, ref_id FROM ns_child WHERE parent_id = JSON_VALUE(@doc, '$._id') ORDER BY id;
+STDOUT:
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| read_back                                                                                                                                                                         |
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 4, "name": "NS4", "children": [{"id": 7, "label": "A", "ref_id": 1}, {"id": 8, "label": "B", "ref_id": null}], "_metadata": {"etag": "9ae5f03702a6e0dd8bf26292364ad73c"}} |
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| after_update                                                                                                                                                                              |
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {"_id": 4, "name": "NS4-renamed", "children": [{"id": 7, "label": "A", "ref_id": 1}, {"id": 8, "label": "B", "ref_id": null}], "_metadata": {"etag": "49287c9e0ccb1847d1a87a627994a5fb"}} |
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
++----+-------+--------+
+| id | label | ref_id |
++----+-------+--------+
+|  7 | A     |      1 |
+|  8 | B     |   NULL |
++----+-------+--------+
+STDERR:
+
+
+--- NS5: workaround consequence, scalar ref_id is writable (NULL -> 1) (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_repro_scratch;
+INSERT INTO ns_parent_scalar_dv VALUES('{"name":"NS5","children":[{"label":"A","ref_id":1},{"label":"B"}]}');
+SET @doc = (SELECT data FROM ns_parent_scalar_dv WHERE JSON_VALUE(data, '$.name') = 'NS5');
+UPDATE ns_parent_scalar_dv SET data = JSON_SET(@doc, '$.children[1].ref_id', 1)
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+SELECT id, label, ref_id FROM ns_child WHERE parent_id = JSON_VALUE(@doc, '$._id') ORDER BY id;
+STDOUT:
++----+-------+--------+
+| id | label | ref_id |
++----+-------+--------+
+|  9 | A     |      1 |
+| 10 | B     |      1 |
++----+-------+--------+
+STDERR:
