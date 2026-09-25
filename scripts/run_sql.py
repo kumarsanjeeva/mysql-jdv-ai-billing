@@ -15,7 +15,8 @@
 #   - Normal file: sent as one mysql session; stops at the first SQL error.
 #   - Test file (contains `-- TEST: <id> <description>` lines): each test
 #     block runs in its own mysql session so one failure never hides the
-#     rest. A block may say `-- EXPECT: ERROR|OK` (default OK) and
+#     rest. A block may say `-- EXPECT: OK`, `-- EXPECT: ERROR` (any error)
+#     or `-- EXPECT: ERROR 1644` (that exact code); default is OK. It may say
 #     `-- AS: agent` (run as the least-privilege agent user). Each block is
 #     marked PASS if the outcome matched EXPECT, SURPRISE if not -- a
 #     SURPRISE is a finding to write up in docs/findings.md, never something
@@ -50,7 +51,8 @@ PLACEHOLDERS = {
 }
 
 TEST_RE = re.compile(r"^--\s*TEST:\s*(\S+)\s*(.*)$")
-EXPECT_RE = re.compile(r"^--\s*EXPECT:\s*(ERROR|OK)\s*$", re.IGNORECASE)
+EXPECT_RE = re.compile(r"^--\s*EXPECT:\s*(ERROR|OK)(?:\s+(\d+))?\s*$", re.IGNORECASE)
+ERROR_CODE_RE = re.compile(r"^ERROR (\d+)", re.MULTILINE)
 AS_RE = re.compile(r"^--\s*AS:\s*(admin|agent)\s*$", re.IGNORECASE)
 
 
@@ -130,7 +132,7 @@ def parse_blocks(sql_text: str) -> list[dict]:
             continue
         m = EXPECT_RE.match(line.strip())
         if m:
-            current["expect"] = m.group(1).upper()
+            current["expect"] = m.group(1).upper() + (f" {m.group(2)}" if m.group(2) else "")
             continue
         m = AS_RE.match(line.strip())
         if m:
@@ -151,9 +153,11 @@ def run_edge_case_file(sql_path: Path, env: dict, default_as_agent: bool) -> int
         block_sql = "\n".join(b["sql"]).strip()
         as_agent = default_as_agent or (b["as"] == "agent")
         rc, out, err, user = mysql_invoke(env, block_sql, as_agent)
-        actual = "ERROR" if rc != 0 else "OK"
+        code = ERROR_CODE_RE.search(err)
+        actual = "OK" if rc == 0 else ("ERROR " + code.group(1) if code else "ERROR")
         expect = b["expect"] or "OK"
-        verdict = "PASS" if actual == expect else "SURPRISE"
+        # "EXPECT: ERROR" accepts any error; "EXPECT: ERROR 1644" needs that exact code.
+        verdict = "PASS" if actual == expect or (expect == "ERROR" and actual.startswith("ERROR")) else "SURPRISE"
         results.append((b["id"], b["desc"], expect, actual, verdict))
         transcript.append(
             f"\n--- {b['id']}: {b['desc']} (as {user}) ---\n"
@@ -165,9 +169,9 @@ def run_edge_case_file(sql_path: Path, env: dict, default_as_agent: bool) -> int
 
     col_id = max(4, max((len(r[0]) for r in results), default=4))
     col_desc = max(11, max((len(r[1]) for r in results), default=11))
-    table_lines = [f"{'ID':<{col_id}}  {'DESCRIPTION':<{col_desc}}  EXPECT  ACTUAL  VERDICT"]
+    table_lines = [f"{'ID':<{col_id}}  {'DESCRIPTION':<{col_desc}}  {'EXPECT':<10}  {'ACTUAL':<10}  VERDICT"]
     for r in results:
-        table_lines.append(f"{r[0]:<{col_id}}  {r[1]:<{col_desc}}  {r[2]:<6}  {r[3]:<6}  {r[4]}")
+        table_lines.append(f"{r[0]:<{col_id}}  {r[1]:<{col_desc}}  {r[2]:<10}  {r[3]:<10}  {r[4]}")
     table = "\n".join(table_lines)
 
     print(table)

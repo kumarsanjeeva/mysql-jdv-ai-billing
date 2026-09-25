@@ -1,0 +1,63 @@
+-- run_sql.py -- 2026-09-25 21:53:02 UTC
+-- file: sql\04_edge_cases.sql
+-- connecting user: per test, see below
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
+ID             DESCRIPTION                                                      EXPECT      ACTUAL      VERDICT
+E25            agent changes a payment amount through order_dv                  ERROR 1644  ERROR 1644  PASS
+E26            admin changes a payment amount with a direct UPDATE on payments  ERROR 1644  ERROR 1644  PASS
+E25_E26_CHECK  payment amount is still 500.00 after E25 and E26                 OK          OK          PASS
+
+
+--- E25: agent changes a payment amount through order_dv (as jdv_agent) ---
+EXPECT: ERROR 1644  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-002');
+SET @amount_path = REPLACE(
+    JSON_UNQUOTE(JSON_SEARCH(@doc, 'one', 'seed-payment-001', NULL, '$.payments[*].request_id')),
+    '.request_id', '.amount');
+SELECT @amount_path AS amount_path, JSON_EXTRACT(@doc, @amount_path) AS amount_before;
+UPDATE order_dv SET data = JSON_SET(@doc, @amount_path, 1.00)
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+STDOUT:
++----------------------+---------------+
+| amount_path          | amount_before |
++----------------------+---------------+
+| $.payments[0].amount | 500.0         |
++----------------------+---------------+
+STDERR:
+ERROR 1644 (45000) at line 7: GUARD 5: payments are immutable once inserted
+
+
+--- E26: admin changes a payment amount with a direct UPDATE on payments (as jdv_admin) ---
+EXPECT: ERROR 1644  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SELECT id, amount FROM payments WHERE request_id = 'seed-payment-001';
+UPDATE payments SET amount = 1.00 WHERE request_id = 'seed-payment-001';
+STDOUT:
++----+--------+
+| id | amount |
++----+--------+
+|  1 | 500.00 |
++----+--------+
+STDERR:
+ERROR 1644 (45000) at line 3: GUARD 5: payments are immutable once inserted
+
+
+--- E25_E26_CHECK: payment amount is still 500.00 after E25 and E26 (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SELECT JSON_EXTRACT(data, REPLACE(
+           JSON_UNQUOTE(JSON_SEARCH(data, 'one', 'seed-payment-001', NULL, '$.payments[*].request_id')),
+           '.request_id', '.amount')) AS amount_after
+FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-002';
+STDOUT:
++--------------+
+| amount_after |
++--------------+
+| 500.00       |
++--------------+
+STDERR:

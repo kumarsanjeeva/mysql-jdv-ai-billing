@@ -1,9 +1,7 @@
 # Porting notes
 
 Generic PostgreSQL -> MySQL porting decisions (type mapping, what didn't port
-and why, tenant isolation without RLS). No external project name or path — see
-the ground rules in `CLAUDE.md`. Fleshed out further in Phase 5; this section
-is written now because it recorded a live decision during Phase 3.
+and why, tenant isolation without RLS).
 
 ## Primary keys: `BIGINT UNSIGNED AUTO_INCREMENT`, not UUIDs
 

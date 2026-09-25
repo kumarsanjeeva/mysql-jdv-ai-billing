@@ -222,9 +222,7 @@ __marimo__/
 # ---------------------------------------------------------------------------
 
 # Private working folder (never committed)
-# Only its own README is committed, so the folder's purpose is documented.
-reference-local/*
-!reference-local/README.md
+reference-local/
 
 # Secrets
 .env
@@ -242,8 +240,9 @@ dumps/
 *.dump
 .mysql_history
 
-# Claude Code / AI tool local state
-.claude/settings.local.json
+# Local tool configuration
+CLAUDE.md
+.claude/
 .cursor/
 
 # Editors

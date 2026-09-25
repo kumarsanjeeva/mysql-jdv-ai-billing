@@ -1,4 +1,4 @@
--- run_sql.py -- 2026-09-25 21:37:33 UTC
+-- run_sql.py -- 2026-09-25 21:53:02 UTC
 -- file: sql\02_duality_views.sql
 -- connecting user: jdv_admin
 -- host: localhost:3306  (database chosen by the file's own USE)
@@ -79,10 +79,10 @@ Note (Code 1051): Unknown table 'jdv_ai_billing.customer_dv'
   ],
   "subtotal": 1290.00,
   "_metadata": {
-    "etag": "1ffcc89553ae1cab2844d1d9ba0028ce"
+    "etag": "cbd0eff2aed7966ac767de71a9b85e0d"
   },
   "gst_value": 62.50,
-  "created_at": "2026-09-26 03:07:33.812272",
+  "created_at": "2026-09-26 03:23:02.220899",
   "request_id": "seed-order-002",
   "business_id": 1,
   "delivery_at": "2026-09-15 17:00:00.000000",
@@ -168,21 +168,21 @@ Note (Code 1051): Unknown table 'jdv_ai_billing.customer_dv'
     {
       "id": 1,
       "total": 1470.00,
-      "created_at": "2026-09-26 03:07:33.800548",
+      "created_at": "2026-09-26 03:23:02.213913",
       "delivery_at": "2026-09-20 10:00:00.000000",
       "order_status": "confirmed"
     },
     {
       "id": 4,
       "total": 525.00,
-      "created_at": "2026-09-26 03:07:33.863256",
+      "created_at": "2026-09-26 03:23:02.234700",
       "delivery_at": "2026-09-10 09:00:00.000000",
       "order_status": "cancelled"
     }
   ],
   "address": "221 Brigade Road, Bengaluru",
   "_metadata": {
-    "etag": "a86c6211e13f263d7f4d5b2660578c1e"
+    "etag": "d073d6cd6ca6142383b63d0b32338247"
   },
   "business_id": 1
 } |
@@ -190,14 +190,18 @@ Note (Code 1051): Unknown table 'jdv_ai_billing.customer_dv'
 +---------------+----------------+-------------+---------------------+---------------+------------------+--------------------+-------------------+-----------------+--------------+--------------+--------------+-----------+--------+
 | TABLE_CATALOG | TABLE_SCHEMA   | TABLE_NAME  | DEFINER             | SECURITY_TYPE | JSON_COLUMN_NAME | ROOT_TABLE_CATALOG | ROOT_TABLE_SCHEMA | ROOT_TABLE_NAME | ALLOW_INSERT | ALLOW_UPDATE | ALLOW_DELETE | READ_ONLY | STATUS |
 +---------------+----------------+-------------+---------------------+---------------+------------------+--------------------+-------------------+-----------------+--------------+--------------+--------------+-----------+--------+
-| def           | jdv_ai_billing | order_dv    | jdv_admin@localhost | DEFINER       | data             | def                | jdv_ai_billing    | orders          | 1            | 1            | 0            | 0         | valid  |
-| def           | jdv_ai_billing | payment_dv  | jdv_admin@localhost | DEFINER       | data             | def                | jdv_ai_billing    | payments        | 1            | 0            | 0            | 0         | valid  |
 | def           | jdv_ai_billing | catalog_dv  | jdv_admin@localhost | DEFINER       | data             | def                | jdv_ai_billing    | products        | 0            | 0            | 0            | 1         | valid  |
 | def           | jdv_ai_billing | customer_dv | jdv_admin@localhost | DEFINER       | data             | def                | jdv_ai_billing    | customers       | 0            | 0            | 0            | 1         | valid  |
+| def           | jdv_ai_billing | order_dv    | jdv_admin@localhost | DEFINER       | data             | def                | jdv_ai_billing    | orders          | 1            | 1            | 0            | 0         | valid  |
+| def           | jdv_ai_billing | payment_dv  | jdv_admin@localhost | DEFINER       | data             | def                | jdv_ai_billing    | payments        | 1            | 0            | 0            | 0         | valid  |
 +---------------+----------------+-------------+---------------------+---------------+------------------+--------------------+-------------------+-----------------+--------------+--------------+--------------+-----------+--------+
 +---------------+----------------+-------------+--------------------------+-------------------------+-----------------------+-----------------------------------------------------------------+--------------+--------------+--------------+-----------+---------------+---------------------+----------------------------+--------------------------------------+
 | TABLE_CATALOG | TABLE_SCHEMA   | TABLE_NAME  | REFERENCED_TABLE_CATALOG | REFERENCED_TABLE_SCHEMA | REFERENCED_TABLE_NAME | WHERE_CLAUSE                                                    | ALLOW_INSERT | ALLOW_UPDATE | ALLOW_DELETE | READ_ONLY | IS_ROOT_TABLE | REFERENCED_TABLE_ID | REFERENCED_TABLE_PARENT_ID | REFERENCED_TABLE_PARENT_RELATIONSHIP |
 +---------------+----------------+-------------+--------------------------+-------------------------+-----------------------+-----------------------------------------------------------------+--------------+--------------+--------------+-----------+---------------+---------------------+----------------------------+--------------------------------------+
+| def           | jdv_ai_billing | catalog_dv  | def                      | jdv_ai_billing          | products              |                                                                 |            0 |            0 |            0 |         1 |             1 |                   0 |                       NULL | NULL                                 |
+| def           | jdv_ai_billing | catalog_dv  | def                      | jdv_ai_billing          | product_variants      | NULL                                                            |            0 |            0 |            0 |         1 |             0 |                   1 |                          0 | nested                               |
+| def           | jdv_ai_billing | customer_dv | def                      | jdv_ai_billing          | customers             |                                                                 |            0 |            0 |            0 |         1 |             1 |                   0 |                       NULL | NULL                                 |
+| def           | jdv_ai_billing | customer_dv | def                      | jdv_ai_billing          | orders                | jdv_ai_billing.orders.customer_id = jdv_ai_billing.customers.id |            0 |            0 |            0 |         1 |             0 |                   1 |                          0 | nested                               |
 | def           | jdv_ai_billing | order_dv    | def                      | jdv_ai_billing          | orders                |                                                                 |            1 |            1 |            0 |         0 |             1 |                   0 |                       NULL | NULL                                 |
 | def           | jdv_ai_billing | order_dv    | def                      | jdv_ai_billing          | payments              | jdv_ai_billing.payments.order_id = jdv_ai_billing.orders.id     |            1 |            1 |            0 |         0 |             0 |                   5 |                          0 | nested                               |
 | def           | jdv_ai_billing | order_dv    | def                      | jdv_ai_billing          | order_items           | jdv_ai_billing.order_items.order_id = jdv_ai_billing.orders.id  |            1 |            1 |            0 |         0 |             0 |                   3 |                          0 | nested                               |
@@ -206,8 +210,4 @@ Note (Code 1051): Unknown table 'jdv_ai_billing.customer_dv'
 | def           | jdv_ai_billing | order_dv    | def                      | jdv_ai_billing          | outlets               | jdv_ai_billing.outlets.id = jdv_ai_billing.orders.outlet_id     |            0 |            0 |            0 |         1 |             0 |                   1 |                          0 | singleton                            |
 | def           | jdv_ai_billing | payment_dv  | def                      | jdv_ai_billing          | payments              |                                                                 |            1 |            0 |            0 |         0 |             1 |                   0 |                       NULL | NULL                                 |
 | def           | jdv_ai_billing | payment_dv  | def                      | jdv_ai_billing          | orders                | jdv_ai_billing.orders.id = jdv_ai_billing.payments.order_id     |            0 |            0 |            0 |         1 |             0 |                   1 |                          0 | singleton                            |
-| def           | jdv_ai_billing | catalog_dv  | def                      | jdv_ai_billing          | products              |                                                                 |            0 |            0 |            0 |         1 |             1 |                   0 |                       NULL | NULL                                 |
-| def           | jdv_ai_billing | catalog_dv  | def                      | jdv_ai_billing          | product_variants      | NULL                                                            |            0 |            0 |            0 |         1 |             0 |                   1 |                          0 | nested                               |
-| def           | jdv_ai_billing | customer_dv | def                      | jdv_ai_billing          | customers             |                                                                 |            0 |            0 |            0 |         1 |             1 |                   0 |                       NULL | NULL                                 |
-| def           | jdv_ai_billing | customer_dv | def                      | jdv_ai_billing          | orders                | jdv_ai_billing.orders.customer_id = jdv_ai_billing.customers.id |            0 |            0 |            0 |         1 |             0 |                   1 |                          0 | nested                               |
 +---------------+----------------+-------------+--------------------------+-------------------------+-----------------------+-----------------------------------------------------------------+--------------+--------------+--------------+-----------+---------------+---------------------+----------------------------+--------------------------------------+

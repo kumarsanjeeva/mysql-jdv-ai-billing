@@ -89,7 +89,10 @@ Two designs tested against case D1 (`results/repro_payment_design_ab.sql` / `.tx
   back together (A2), and a failing payment insert leaves no order behind
   (A3). But the D1 round trip still fails (A4): `ERROR 6497 (HY000): Missing
   UPDATE tag on ... da_payment.paid_at`. A read-only array rejects the
-  string datetime exactly like an insert-only one.
+  string datetime exactly like an insert-only one. So the problem is the
+  value comparison (the string `paid_at` does not compare equal to the
+  stored DATETIME, so it counts as a change), not the annotation: removing
+  write permission does not make the unchanged value acceptable.
 - **Design B -- payments `WITH(INSERT, UPDATE)` plus a BEFORE UPDATE trigger
   that rejects any column change.** The D1 round trip succeeds and the
   payment row is not modified (`updated_at` unchanged) (B1). Changing an
@@ -100,6 +103,17 @@ Resolution: design B adopted -- `order_dv.payments` is `WITH(INSERT,
 UPDATE)` and GUARD 5 (`trg_payments_guard_immutable` in `sql/01_schema.sql`)
 rejects any change to a payment. In the demo database, H05 then succeeded:
 the order became `delivered` and neither payment row was modified.
+
+### E25 / E26 -- GUARD 5 holds in the demo database, for every connection
+
+Evidence: `sql/04_edge_cases.sql`, `results/04_edge_cases.txt`. Target:
+`seed-payment-001` (500.00).
+
+| Test | Who / how | Result |
+|---|---|---|
+| E25 | agent user, through `order_dv`, sets the payment's `amount` to 1.00 | `ERROR 1644 (45000): GUARD 5: payments are immutable once inserted` |
+| E26 | admin user, direct `UPDATE payments SET amount = 1.00` | same `ERROR 1644` |
+| check | agent reads the payment back | `amount` still 500.00 |
 
 ### E24 -- an explicit child id works; an id from an inline subquery is treated as generated
 
