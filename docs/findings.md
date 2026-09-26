@@ -201,3 +201,19 @@ This corrects the earlier claim (in the `sql/02_duality_views.sql` and
 `sql/03_dml_demos.sql` comments) that an explicit-id append is always
 rejected; those comments now state it precisely.
 
+### E27 -- JSON_TABLE over a duality view fails inside `SET @var = (SELECT ...)`
+
+Evidence: `results/repro_e27_jsontable_set_subquery.sql` / `.txt`
+(standalone, in `jdv_repro_scratch`). Found while writing
+`sql/05_scenario.sql`.
+
+| Test | Form | Result |
+|---|---|---|
+| Q1 | `SELECT MAX(c.id) FROM parent_dv p, JSON_TABLE(p.data, '$.children[*]' ...) c` on its own | OK |
+| Q2 | the same query as `SELECT ... INTO @var` | OK |
+| Q3 | the same query as `SET @var = (SELECT ...)` | `ERROR 1210 (HY000): Incorrect arguments to JSON_TABLE` |
+| Q4 | control: `SET @var = (SELECT ...)` with `JSON_TABLE` over JSON not from a duality view | OK |
+
+Meaning: only the combination of a duality view's `data` column, `JSON_TABLE`
+and a scalar subquery in `SET` fails. Use `SELECT ... INTO @var` instead;
+`sql/05_scenario.sql` does.

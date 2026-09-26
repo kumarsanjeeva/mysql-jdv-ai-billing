@@ -1,4 +1,4 @@
--- run_sql.py -- 2026-09-25 21:58:32 UTC
+-- run_sql.py -- 2026-09-25 23:01:25 UTC
 -- file: sql\02_duality_views.sql
 -- connecting user: jdv_admin
 -- host: localhost:3306  (database chosen by the file's own USE)
@@ -79,10 +79,10 @@ Note (Code 1051): Unknown table 'jdv_ai_billing.customer_dv'
   ],
   "subtotal": 1290.00,
   "_metadata": {
-    "etag": "e8e6be49779724ade1086531f6ce5d9b"
+    "etag": "00d6968b54c421eb5ec1ccf678814188"
   },
   "gst_value": 62.50,
-  "created_at": "2026-09-26 03:28:31.922002",
+  "created_at": "2026-09-26 04:31:24.852973",
   "request_id": "seed-order-002",
   "business_id": 1,
   "delivery_at": "2026-09-15 17:00:00.000000",
@@ -168,21 +168,21 @@ Note (Code 1051): Unknown table 'jdv_ai_billing.customer_dv'
     {
       "id": 1,
       "total": 1470.00,
-      "created_at": "2026-09-26 03:28:31.912862",
+      "created_at": "2026-09-26 04:31:24.845624",
       "delivery_at": "2026-09-20 10:00:00.000000",
       "order_status": "confirmed"
     },
     {
       "id": 4,
       "total": 525.00,
-      "created_at": "2026-09-26 03:28:31.939516",
+      "created_at": "2026-09-26 04:31:24.872342",
       "delivery_at": "2026-09-10 09:00:00.000000",
       "order_status": "cancelled"
     }
   ],
   "address": "221 Brigade Road, Bengaluru",
   "_metadata": {
-    "etag": "17d008361fd02c627c224782e54749a2"
+    "etag": "5b2afcb08b56662a1454514ee422ed73"
   },
   "business_id": 1
 } |

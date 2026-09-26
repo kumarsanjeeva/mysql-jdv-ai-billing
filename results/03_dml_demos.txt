@@ -1,4 +1,4 @@
--- run_sql.py -- 2026-09-25 21:58:32 UTC
+-- run_sql.py -- 2026-09-25 23:01:25 UTC
 -- file: sql\03_dml_demos.sql
 -- connecting user: jdv_admin
 -- host: localhost:3306  (database chosen by the file's own USE)
@@ -67,7 +67,7 @@
       "id": 7,
       "amount": 500.0,
       "method": "upi",
-      "paid_at": "2026-09-26 03:28:32.265401",
+      "paid_at": "2026-09-26 04:31:25.225886",
       "request_id": "h01-payment-advance",
       "business_id": 1,
       "payment_type": "advance"
@@ -75,10 +75,10 @@
   ],
   "subtotal": 1440.0,
   "_metadata": {
-    "etag": "98f805e72fabdfbd0b3f42f5fae0d6ea"
+    "etag": "37697d0ab30914a694545ab596fcb009"
   },
   "gst_value": 72.0,
-  "created_at": "2026-09-26 03:28:32.265401",
+  "created_at": "2026-09-26 04:31:25.225886",
   "request_id": "h01-demo-001",
   "business_id": 1,
   "delivery_at": "2026-10-03 10:00:00.000000",
@@ -92,7 +92,7 @@
 +----------------------------------+
 | h02_etag                         |
 +----------------------------------+
-| 98f805e72fabdfbd0b3f42f5fae0d6ea |
+| 37697d0ab30914a694545ab596fcb009 |
 +----------------------------------+
 +----------+--------------+---------+--------------+--------------------------+
 | order_id | order_status | total   | customer     | outlet                   |
@@ -174,7 +174,7 @@
       "id": 7,
       "amount": 500.0,
       "method": "upi",
-      "paid_at": "2026-09-26 03:28:32.265401",
+      "paid_at": "2026-09-26 04:31:25.225886",
       "request_id": "h01-payment-advance",
       "business_id": 1,
       "payment_type": "advance"
@@ -183,7 +183,7 @@
       "id": 8,
       "amount": 1012.0,
       "method": "cash",
-      "paid_at": "2026-09-26 03:28:32.285138",
+      "paid_at": "2026-09-26 04:31:25.246617",
       "request_id": "h04-payment-final",
       "business_id": 1,
       "payment_type": "final"
@@ -191,10 +191,10 @@
   ],
   "subtotal": 1440.0,
   "_metadata": {
-    "etag": "6567aa2ea20658fdcbd2725cfb075499"
+    "etag": "513952b95f12a5e1db580e198dd4584a"
   },
   "gst_value": 72.0,
-  "created_at": "2026-09-26 03:28:32.265401",
+  "created_at": "2026-09-26 04:31:25.225886",
   "request_id": "h01-demo-001",
   "business_id": 1,
   "delivery_at": "2026-10-03 10:00:00.000000",
@@ -221,28 +221,28 @@
     {
       "id": 1,
       "total": 1470.00,
-      "created_at": "2026-09-26 03:28:31.912862",
+      "created_at": "2026-09-26 04:31:24.845624",
       "delivery_at": "2026-09-20 10:00:00.000000",
       "order_status": "confirmed"
     },
     {
       "id": 4,
       "total": 525.00,
-      "created_at": "2026-09-26 03:28:31.939516",
+      "created_at": "2026-09-26 04:31:24.872342",
       "delivery_at": "2026-09-10 09:00:00.000000",
       "order_status": "cancelled"
     },
     {
       "id": 6,
       "total": 1512.00,
-      "created_at": "2026-09-26 03:28:32.265401",
+      "created_at": "2026-09-26 04:31:25.225886",
       "delivery_at": "2026-10-03 10:00:00.000000",
       "order_status": "delivered"
     }
   ],
   "address": "221 Brigade Road, Bengaluru",
   "_metadata": {
-    "etag": "481127d22a8ef18e3ba2306256b8d30f"
+    "etag": "48dcd1c43950f5d2d8f5aa41722c30c2"
   },
   "business_id": 1
 } |

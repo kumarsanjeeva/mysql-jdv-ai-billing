@@ -1,0 +1,103 @@
+-- run_sql.py -- 2026-09-25 22:59:18 UTC
+-- file: results\repro_e27_jsontable_set_subquery.sql
+-- connecting user: per test, see below
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
+ID     DESCRIPTION                                                                          EXPECT      ACTUAL      VERDICT
+SETUP  one parent with two children, and a duality view over them                           OK          OK          PASS
+Q1     the query on its own                                                                 OK          OK          PASS
+Q2     the same query as SELECT ... INTO @var                                               OK          OK          PASS
+Q3     the same query as a scalar subquery in SET @var = (...)                              OK          ERROR 1210  SURPRISE
+Q4     control: SET @var = (...) with JSON_TABLE over JSON that is not from a duality view  OK          OK          PASS
+
+
+--- SETUP: one parent with two children, and a duality view over them (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_repro_scratch;
+DROP VIEW IF EXISTS e27_parent_dv;
+DROP TABLE IF EXISTS e27_child;
+DROP TABLE IF EXISTS e27_parent;
+CREATE TABLE e27_parent (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50) NOT NULL) ENGINE=InnoDB;
+CREATE TABLE e27_child (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    parent_id BIGINT UNSIGNED NOT NULL,
+    CONSTRAINT fk_e27_child_parent FOREIGN KEY (parent_id) REFERENCES e27_parent(id)
+) ENGINE=InnoDB;
+CREATE JSON DUALITY VIEW e27_parent_dv AS
+SELECT JSON_DUALITY_OBJECT(
+    '_id': id,
+    'name': name,
+    'children': (SELECT JSON_ARRAYAGG(JSON_DUALITY_OBJECT('id': id)) FROM e27_child WHERE e27_child.parent_id = e27_parent.id)
+)
+FROM e27_parent;
+INSERT INTO e27_parent (name) VALUES ('P1');
+INSERT INTO e27_child (parent_id) VALUES (1), (1);
+STDOUT:
+Note (Code 1051): Unknown table 'jdv_repro_scratch.e27_parent_dv'
+Note (Code 1051): Unknown table 'jdv_repro_scratch.e27_child'
+Note (Code 1051): Unknown table 'jdv_repro_scratch.e27_parent'
+STDERR:
+
+
+--- Q1: the query on its own (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_repro_scratch;
+SELECT MAX(c.id) AS max_child_id
+  FROM e27_parent_dv p, JSON_TABLE(p.data, '$.children[*]' COLUMNS (id BIGINT PATH '$.id')) c
+ WHERE JSON_VALUE(p.data, '$.name') = 'P1';
+STDOUT:
++--------------+
+| max_child_id |
++--------------+
+|            2 |
++--------------+
+STDERR:
+
+
+--- Q2: the same query as SELECT ... INTO @var (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_repro_scratch;
+SELECT MAX(c.id) INTO @max_child_id
+  FROM e27_parent_dv p, JSON_TABLE(p.data, '$.children[*]' COLUMNS (id BIGINT PATH '$.id')) c
+ WHERE JSON_VALUE(p.data, '$.name') = 'P1';
+SELECT @max_child_id AS max_child_id;
+STDOUT:
++--------------+
+| max_child_id |
++--------------+
+|            2 |
++--------------+
+STDERR:
+
+
+--- Q3: the same query as a scalar subquery in SET @var = (...) (as jdv_admin) ---
+EXPECT: OK  ACTUAL: ERROR 1210  VERDICT: SURPRISE
+SQL:
+USE jdv_repro_scratch;
+SET @max_child_id = (SELECT MAX(c.id)
+  FROM e27_parent_dv p, JSON_TABLE(p.data, '$.children[*]' COLUMNS (id BIGINT PATH '$.id')) c
+ WHERE JSON_VALUE(p.data, '$.name') = 'P1');
+SELECT @max_child_id AS max_child_id;
+STDOUT:
+STDERR:
+ERROR 1210 (HY000) at line 2: Incorrect arguments to JSON_TABLE
+
+
+--- Q4: control: SET @var = (...) with JSON_TABLE over JSON that is not from a duality view (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_repro_scratch;
+SET @max_child_id = (SELECT MAX(c.id)
+  FROM (SELECT JSON_OBJECT('children', JSON_ARRAY(JSON_OBJECT('id', 1), JSON_OBJECT('id', 2))) AS data) p,
+       JSON_TABLE(p.data, '$.children[*]' COLUMNS (id BIGINT PATH '$.id')) c);
+SELECT @max_child_id AS max_child_id;
+STDOUT:
++--------------+
+| max_child_id |
++--------------+
+|            2 |
++--------------+
+STDERR:
