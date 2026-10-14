@@ -3,7 +3,9 @@
 -- GUARD 8 -- tenant consistency of order items, plus GUARD 8b -- an order's
 -- business can never change. Runs after sql/06_guards_6_7.sql;
 -- scripts/reset_db.py runs it right after 06. Safe to re-run: each trigger
--- is dropped first.
+-- is dropped first. Re-apply 06 and 09 together, in that order: re-running 06
+-- alone recreates trg_order_items_guard_ins, which then fires AFTER the GUARD 8
+-- trigger (evidence: sql/14_trigger_order_evidence.sql).
 --
 -- Why: GUARD 4 checks an order's customer and outlet, GUARD 7 a payment's
 -- business -- nothing checked the items. Before this file a business-1 order

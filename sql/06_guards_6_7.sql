@@ -4,7 +4,10 @@
 -- triggers added after the first five guards in sql/01_schema.sql. Kept in
 -- their own file so they are visible as their own piece. scripts/reset_db.py
 -- runs this after 00 -> 02, so a rebuild always ends up complete. Safe to
--- re-run: each trigger is dropped first.
+-- re-run: each trigger is dropped first. Re-apply 06 and 09 together, in that
+-- order: re-running 06 alone recreates trg_order_items_guard_ins, which then
+-- fires AFTER the GUARD 8 trigger from sql/09 (evidence:
+-- sql/14_trigger_order_evidence.sql).
 --
 -- GUARD 6 -- order_items (the agent only ever reaches this table through
 --            order_dv; triggers fire for writes made through the view):
@@ -15,10 +18,12 @@
 --           product_variant_id are given, the variant must belong to that
 --           product. Otherwise a cheap variant of one product could be
 --           attached to another.
---   UPDATE: price, product_id and product_variant_id can never change
---           (price immutability was in the spec; locking the two catalog
---           links is a deliberate addition, so the INSERT checks cannot be
---           bypassed by a later UPDATE). Nothing is re-checked against the
+--   UPDATE: price, product_id, product_variant_id and order_id can never
+--           change (price immutability was in the spec; locking the two
+--           catalog links is a deliberate addition, so the INSERT checks
+--           cannot be bypassed by a later UPDATE; order_id was added after
+--           probe E33 showed an item could be moved into another business's
+--           order, sql/12). Nothing is re-checked against the
 --           catalog on UPDATE, so a later catalog price change never
 --           invalidates an existing item.
 --   Prices are compared as DECIMAL with the NULL-safe <=>, so 450 and 450.00
@@ -90,9 +95,10 @@ FOR EACH ROW
 BEGIN
     IF NOT (NEW.price <=> OLD.price)
        OR NOT (NEW.product_id <=> OLD.product_id)
-       OR NOT (NEW.product_variant_id <=> OLD.product_variant_id) THEN
+       OR NOT (NEW.product_variant_id <=> OLD.product_variant_id)
+       OR NOT (NEW.order_id <=> OLD.order_id) THEN
         SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'GUARD 6: order_items.price, product_id and product_variant_id are immutable once inserted';
+            SET MESSAGE_TEXT = 'GUARD 6: order_items.price, product_id, product_variant_id and order_id are immutable once inserted';
     END IF;
 END$$
 

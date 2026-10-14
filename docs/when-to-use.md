@@ -26,7 +26,7 @@ grant on a duality view is all-or-nothing: an account that can `SELECT` from
 ## Write-side tenant checks, and what they needed
 
 Because there is no row-level security, every place a row can name another
-business has to be closed by a trigger. In this demo that took four pieces,
+business has to be closed by a trigger. In this demo that took five pieces,
 each found by testing rather than assumed:
 
 - **guard #4:** an order's customer and outlet belong to the order's business.
@@ -39,6 +39,9 @@ each found by testing rather than assumed:
   business together with the customer and outlet slipped past guard #4 and
   left the order's items and payments in the old business (E31b in the same
   file), because #7 and #8 only check inserts.
+
+- **order_id lock (guard #6):** an item's `order_id` cannot change. An admin could
+  move a business-1 item into a business-2 order (E33, `results/12_*.txt`); now`n  rejected (`results/13_*.txt`). The gap is closed.
 
 Still open: an administrator can change `products.business_id` directly (no
 view allows it), which would leave existing items pointing at another business.

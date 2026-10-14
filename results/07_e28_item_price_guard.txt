@@ -1,4 +1,4 @@
--- run_sql.py -- 2026-10-14 20:48:20 UTC
+-- run_sql.py -- 2026-10-14 22:07:12 UTC
 -- file: sql\07_e28_item_price_guard.sql
 -- connecting user: per test, see below
 -- host: localhost:3306  (database chosen by the file's own USE)
@@ -156,7 +156,7 @@ STDOUT:
 | Black Forest Cake | 900.0        |
 +-------------------+--------------+
 STDERR:
-ERROR 1644 (45000) at line 5: GUARD 6: order_items.price, product_id and product_variant_id are immutable once inserted
+ERROR 1644 (45000) at line 5: GUARD 6: order_items.price, product_id, product_variant_id and order_id are immutable once inserted
 
 
 --- E28c2: existing item's variant changed through order_dv (variant 2 -> variant 3) (as jdv_agent) ---
@@ -176,7 +176,7 @@ STDOUT:
 | 2              |
 +----------------+
 STDERR:
-ERROR 1644 (45000) at line 5: GUARD 6: order_items.price, product_id and product_variant_id are immutable once inserted
+ERROR 1644 (45000) at line 5: GUARD 6: order_items.price, product_id, product_variant_id and order_id are immutable once inserted
 
 
 --- E28c3: existing item's product changed through order_dv (product 1 -> product 2) (as jdv_agent) ---
@@ -196,7 +196,7 @@ STDOUT:
 | 1              |
 +----------------+
 STDERR:
-ERROR 1644 (45000) at line 5: GUARD 6: order_items.price, product_id and product_variant_id are immutable once inserted
+ERROR 1644 (45000) at line 5: GUARD 6: order_items.price, product_id, product_variant_id and order_id are immutable once inserted
 
 
 --- E28c4: a harmless change to the same item (its notes) is still allowed (as jdv_agent) ---

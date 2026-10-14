@@ -1,0 +1,16 @@
+-- run_sql.py -- 2026-10-14 22:14:29 UTC
+-- file: sql\14_trigger_order_evidence.sql
+-- connecting user: jdv_admin
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
++-------------+--------+--------+--------------+----------------------------------+
+| on_table    | event  | timing | ACTION_ORDER | TRIGGER_NAME                     |
++-------------+--------+--------+--------------+----------------------------------+
+| order_items | INSERT | BEFORE |            1 | trg_order_items_guard_ins        |
+| order_items | INSERT | BEFORE |            2 | trg_order_items_guard_tenant_ins |
++-------------+--------+--------+--------------+----------------------------------+
++-------------------------------------------+
+| order_check                               |
++-------------------------------------------+
+| PASS: guard_ins = 1, guard_tenant_ins = 2 |
++-------------------------------------------+

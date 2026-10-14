@@ -1,0 +1,87 @@
+-- run_sql.py -- 2026-10-14 22:14:31 UTC
+-- file: sql\13_e33_order_id_guard.sql
+-- connecting user: per test, see below
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
+ID              DESCRIPTION                                                                                                                                             EXPECT      ACTUAL      VERDICT
+E33b            admin directly sets order_items.order_id of a business-1 item to the business-2 order seed-order-005                                                    ERROR 1644  ERROR 1644  PASS
+E33b_UNCHANGED  the item is still in seed-order-002 and both orders still have their original two items (nothing was rolled back for it: the UPDATE never took effect)  OK          OK          PASS
+E33c            an UPDATE that sets order_id to the value it already has (and changes the item's notes) still passes                                                    OK          OK          PASS
+
+
+--- E33b: admin directly sets order_items.order_id of a business-1 item to the business-2 order seed-order-005 (as jdv_admin) ---
+EXPECT: ERROR 1644  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @from_order = (SELECT id FROM orders WHERE request_id = 'seed-order-002');
+SET @to_order = (SELECT id FROM orders WHERE request_id = 'seed-order-005');
+SET @item = (SELECT MIN(id) FROM order_items WHERE order_id = @from_order);
+SELECT @item AS item_id, @from_order AS from_order, @to_order AS to_order;
+UPDATE order_items SET order_id = @to_order WHERE id = @item;
+SELECT ROW_COUNT() AS rows_changed;
+ROLLBACK;
+STDOUT:
++---------+------------+----------+
+| item_id | from_order | to_order |
++---------+------------+----------+
+|       3 |          2 |        5 |
++---------+------------+----------+
+STDERR:
+ERROR 1644 (45000) at line 7: GUARD 6: order_items.price, product_id, product_variant_id and order_id are immutable once inserted
+
+
+--- E33b_UNCHANGED: the item is still in seed-order-002 and both orders still have their original two items (nothing was rolled back for it: the UPDATE never took effect) (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SELECT oi.id AS item_id, oi.order_id, o.request_id FROM order_items oi JOIN orders o ON o.id = oi.order_id
+ WHERE o.request_id IN ('seed-order-002', 'seed-order-005') ORDER BY o.request_id, oi.id;
+-- A failed assertion is an error, so the verdict would show SURPRISE.
+SELECT IF((SELECT COUNT(*) FROM order_items WHERE order_id = (SELECT id FROM orders WHERE request_id = 'seed-order-002')) = 2
+          AND (SELECT COUNT(*) FROM order_items WHERE order_id = (SELECT id FROM orders WHERE request_id = 'seed-order-005')) = 2
+          AND (SELECT order_id FROM order_items WHERE id = (SELECT MIN(id) FROM order_items
+                 WHERE order_id = (SELECT id FROM orders WHERE request_id = 'seed-order-002')))
+              = (SELECT id FROM orders WHERE request_id = 'seed-order-002'),
+          'PASS: item still in seed-order-002; both orders still have 2 items',
+          (SELECT 1 UNION SELECT 2)) AS unchanged_check;
+STDOUT:
++---------+----------+----------------+
+| item_id | order_id | request_id     |
++---------+----------+----------------+
+|       3 |        2 | seed-order-002 |
+|       4 |        2 | seed-order-002 |
+|       8 |        5 | seed-order-005 |
+|       9 |        5 | seed-order-005 |
++---------+----------+----------------+
++--------------------------------------------------------------------+
+| unchanged_check                                                    |
++--------------------------------------------------------------------+
+| PASS: item still in seed-order-002; both orders still have 2 items |
++--------------------------------------------------------------------+
+STDERR:
+
+
+--- E33c: an UPDATE that sets order_id to the value it already has (and changes the item's notes) still passes (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @from_order = (SELECT id FROM orders WHERE request_id = 'seed-order-002');
+SET @item = (SELECT MIN(id) FROM order_items WHERE order_id = @from_order);
+UPDATE order_items SET order_id = @from_order, notes = 'E33c same order_id' WHERE id = @item;
+SELECT ROW_COUNT() AS rows_changed;
+SELECT id AS item_id, order_id, notes FROM order_items WHERE id = @item;
+ROLLBACK;
+STDOUT:
++--------------+
+| rows_changed |
++--------------+
+|            1 |
++--------------+
++---------+----------+--------------------+
+| item_id | order_id | notes              |
++---------+----------+--------------------+
+|       3 |        2 | E33c same order_id |
++---------+----------+--------------------+
+STDERR:

@@ -279,7 +279,7 @@ All 17 blocks matched their expectation. Rejected blocks were written as
 | E28b2 | product-only item at 80.00 | `ERROR 1644`: same message |
 | E28b3 | item with neither product nor variant | `ERROR 1644`: GUARD 6: order_items must reference a product or product variant, so the price can be checked against the catalog |
 | E28b4 | Vanilla variant 5 attached to Black Forest Cake (product 1), at 750.00 | `ERROR 1644`: GUARD 6: order_items.product_variant_id does not belong to order_items.product_id |
-| E28c | existing item's price 900.00 -> 1.00 | `ERROR 1644`: GUARD 6: order_items.price, product_id and product_variant_id are immutable once inserted |
+| E28c | existing item's price 900.00 -> 1.00 | `ERROR 1644`: GUARD 6: order_items.price, product_id, product_variant_id and order_id are immutable once inserted (message as of the E33 lock below; the first version of the guard omitted `order_id`) |
 | E28c2 | existing item's variant 2 -> 3 | `ERROR 1644`: same message |
 | E28c3 | existing item's product 1 -> 2 (`$.items[0].product.id`) | `ERROR 1644`: same message -- the change reached `order_items.product_id` through the view and GUARD 6 stopped it |
 | E28c4 | existing item's `notes` changed | OK -- the guard does not block other edits |
@@ -409,3 +409,39 @@ G1-G7, behave as expected. Results: `results/03_dml_demos.txt`,
 `results/04_edge_cases.txt`, `results/05_scenario.txt`,
 `results/07_e28_item_price_guard.txt`, `results/08_e29_payment_business_guard.txt`,
 `results/11_e30_guard_8.txt`, `results/agent_scenarios.txt`.
+
+## E33 -- an item's `order_id` could be changed; now locked (GUARD 6)
+
+Open question after E32: E32 was a duplicate-id insert, so it said nothing about
+changing an existing item's `order_id`. Probe E33 (`sql/12_e33_order_id_probe.sql`,
+`results/12_e33_order_id_probe.txt`, admin, direct `UPDATE order_items SET
+order_id = ...`, rolled back):
+
+| Test | Before | After (`sql/13_e33_order_id_guard.sql`, `results/13_e33_order_id_guard.txt`) |
+|---|---|---|
+| E33 / E33b: move item 3 (business-1 product, `seed-order-002`) into `seed-order-005` (business 2) | **accepted**, `rows_changed` 1: a business-1 item sat in a business-2 order. Rolled back; `E33_ROLLBACK_CHECK` PASS. | `ERROR 1644 (45000)`: GUARD 6: order_items.price, product_id, product_variant_id and order_id are immutable once inserted. `E33b_UNCHANGED` PASS (item still in `seed-order-002`, both orders still 2 items). |
+| E33c: `order_id` set to the value it already has, plus a notes change | not run | OK, 1 row changed (the comparison is NULL-safe, `NOT (NEW.order_id <=> OLD.order_id)`) |
+
+The gap was admin-only (the agent has no grant on `order_items`, E13); it is
+closed by adding `order_id` to the immutable columns of
+`trg_order_items_guard_upd` in `sql/06_guards_6_7.sql`. Guard 8 checks only
+inserts, so without this lock a later move would have bypassed it. Not tested:
+changing `order_id` through `order_dv`; the view's own write path was not probed
+for it. What was tested through `order_dv` after the lock: E28c4 (item notes)
+and E31d (status change) still pass.
+
+**Surprise while applying it: trigger firing order.** Re-running `sql/06` alone
+recreated `trg_order_items_guard_ins`, which then fired *after*
+`trg_order_items_guard_tenant_ins` (`FOLLOWS` is resolved when the trigger is
+created). E30f (wrong tenant and wrong price) then reported GUARD 8 instead of
+the GUARD 6 shown above. Re-applying `sql/09` restored the order; the evidence
+(`ACTION_ORDER` guard_ins = 1, guard_tenant_ins = 2) is in
+`results/14_trigger_order_evidence.txt`, and E30f reports GUARD 6 again in
+`results/11_e30_guard_8.txt`. Rule: re-apply 06 and 09 together, in that order.
+
+**Regression after the lock** (one non-fresh database, not a reset): `04` 25/25
+PASS (E10 still `ERROR 6491`); `05` 6/6; `07` 17/17; `08` 3/3; `11` 12 of 13
+(the one SURPRISE is E32, as before); `13` 3/3; scripted agent scenarios S1-S10
+and G1-G7 as expected. `03` cannot be re-run without a reset (`ERROR 1062`
+duplicate `h01-demo-001`, because its fixed request ids already exist); it was
+not re-run for this change.
