@@ -26,6 +26,11 @@ BUSINESS_ID = int(os.environ.get("AGENT_BUSINESS_ID", "1"))
 ETAG_MISMATCH = 6494  # ER_JDV_ETAG_MISMATCH
 
 
+def rows_written(n):
+    """Say how many rows a write touched: '1 row written' or '4 rows written'."""
+    return f"{n} row written" if n == 1 else f"{n} rows written"
+
+
 def search_catalog(query):
     """Find products (with variants and prices) whose name contains the query text."""
     return run("SELECT JSON_ARRAYAGG(data) FROM catalog_dv"
@@ -56,14 +61,14 @@ def create_order(order):
     """Insert a new order document (items, optional advance payment) through order_dv."""
     rows = run("INSERT INTO order_dv VALUES (JSON_SET(%s, '$.business_id', %s))",
                (json.dumps(order), BUSINESS_ID), fetch=False)
-    return f"Created ({rows} row). Read it back with get_order(request_id={order.get('request_id')!r})."
+    return f"Created: {rows_written(rows)}. Read it back with get_order(request_id={order.get('request_id')!r})."
 
 
 def add_payment(order_id, payment):
     """Insert one payment for an existing order through payment_dv."""
     rows = run("INSERT INTO payment_dv VALUES (JSON_SET(%s, '$.business_id', %s, '$.order', JSON_OBJECT('id', %s)))",
                (json.dumps(payment), BUSINESS_ID, order_id), fetch=False)
-    return f"Payment recorded ({rows} row)."
+    return f"Payment recorded: {rows_written(rows)}."
 
 
 def update_order_status(order_id, status, etag):
@@ -72,7 +77,7 @@ def update_order_status(order_id, status, etag):
            " WHERE JSON_VALUE(data, '$._id') = %s AND JSON_VALUE(data, '$.business_id') = %s")
     try:
         rows = run(sql, (status, etag, order_id, BUSINESS_ID), fetch=False)
-        return f"Status set to {status} ({rows} row)."
+        return f"Status set to {status} ({rows_written(rows)})."
     except mysql.connector.Error as e:
         if e.errno != ETAG_MISMATCH:
             raise
@@ -81,7 +86,7 @@ def update_order_status(order_id, status, etag):
                     (order_id, BUSINESS_ID))
         rows = run(sql, (status, fresh, order_id, BUSINESS_ID), fetch=False)
         return (f"The order had changed since you read it (MySQL error {e.errno}: {e.msg}). "
-                f"Re-read it and retried once: status set to {status} ({rows} row).")
+                f"Re-read it and retried once: status set to {status} ({rows_written(rows)}).")
 
 
 def call(name, args):

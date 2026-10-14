@@ -23,13 +23,23 @@ grant on a duality view is all-or-nothing: an account that can `SELECT` from
   database guarantee. A bug there, or another client using the same
   account, can read across businesses.
 
-## Known limitation: order items are not checked for tenant
+## Write-side tenant checks, and what they needed
 
-Write-side tenant checks cover an order's customer and outlet (guard #4) and a
-payment's `business_id` (guard #7), but not the order's items: nothing
-verifies that an item's product or variant belongs to the same business as the
-order. Guard #6 checks the item's price against the catalog and that a variant
-belongs to its product, which does not close this. A business-1 order can
-carry a business-2 product whose price matches its own catalog entry. A
-guard #8 using the same pattern as guard #4 would close it; it is not in this
-round. See the last section of `docs/findings.md`.
+Because there is no row-level security, every place a row can name another
+business has to be closed by a trigger. In this demo that took four pieces,
+each found by testing rather than assumed:
+
+- **guard #4:** an order's customer and outlet belong to the order's business.
+- **guard #7:** a payment's `business_id` matches its order's.
+- **guard #8:** an item's product and variant belong to the order's business.
+  Before it existed, a business-1 order could carry a business-2 product at
+  that product's own correct price, and the reverse
+  (`results/10_e30_before_guard_8.txt`, E30b-e).
+- **guard #8b:** `orders.business_id` cannot change. Without it, changing the
+  business together with the customer and outlet slipped past guard #4 and
+  left the order's items and payments in the old business (E31b in the same
+  file), because #7 and #8 only check inserts.
+
+Still open: an administrator can change `products.business_id` directly (no
+view allows it), which would leave existing items pointing at another business.
+Reads are covered by the section above.

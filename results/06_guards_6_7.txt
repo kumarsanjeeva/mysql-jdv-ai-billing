@@ -1,4 +1,4 @@
--- run_sql.py -- 2026-10-14 19:31:35 UTC
+-- run_sql.py -- 2026-10-14 20:48:07 UTC
 -- file: sql\06_guards_6_7.sql
 -- connecting user: jdv_admin
 -- host: localhost:3306  (database chosen by the file's own USE)

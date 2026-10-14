@@ -10,7 +10,7 @@
 # Part 2 -- guardrails: things the database refuses (a positive refund, a
 #           repeated request_id, a direct read of a base table, an item at a
 #           wrong price -- GUARD 6, a payment for another business's order --
-#           GUARD 7).
+#           GUARD 7, an item from another business's product -- GUARD 8).
 #
 # Each step says what MySQL should answer ("OK" or an error number). If the
 # real answer differs, the run stops and says so -- a surprise is a finding
@@ -151,6 +151,22 @@ def part2(order, order_id):
     step("G6 add_payment (business 1) to the other business's order (GUARD 7)", "add_payment",
          expect=1644, must_contain="GUARD 7", order_id=int(other),
          payment={"request_id": f"payment-{uuid.uuid4()}", "payment_type": "advance", "method": "cash", "amount": 100.0})
+
+    # Same kind of rogue lookup: another business's product, read from catalog_dv without the business filter.
+    rainbow = doc(run("SELECT data FROM catalog_dv WHERE JSON_VALUE(data, '$.name') = %s", ("Rainbow Cake",)))
+    gst = (rainbow["price"] * rainbow["gst_rate"] / 100).quantize(Decimal("0.01"))
+    cross_tenant = {
+        "request_id": f"order-{uuid.uuid4()}", "order_status": "draft", "delivery_at": "2026-10-03 10:00:00",
+        "subtotal": float(rainbow["price"]), "discount_type": "amount", "discount_value": 0.0,
+        "gst_value": float(gst), "total": float(rainbow["price"] + gst),
+        "outlet": {"id": 1}, "customer": order["customer"],
+        "items": [{"qty": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "discount_value": 0.0,
+                   "name": rainbow["name"], "price": float(rainbow["price"]), "gst_rate": float(rainbow["gst_rate"]),
+                   "gst_value": float(gst), "product": {"id": rainbow["_id"]}}]}
+    log(f"\n(product {rainbow['_id']}, {rainbow['name']}, belongs to the other business; priced correctly at its own "
+        f"catalog price {rainbow['price']}, so only the tenant check can stop it)")
+    step("G7 create_order for business 1 with the other business's product at its correct price (GUARD 8)",
+         "create_order", expect=1644, must_contain="GUARD 8", order=cross_tenant)
 
 
 def main():

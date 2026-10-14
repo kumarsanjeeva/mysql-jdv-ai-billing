@@ -1,4 +1,4 @@
--- run_sql.py -- 2026-10-14 19:31:44 UTC
+-- run_sql.py -- 2026-10-14 20:48:19 UTC
 -- file: sql\05_scenario.sql
 -- connecting user: per test, see below
 -- host: localhost:3306  (database chosen by the file's own USE)
@@ -156,19 +156,19 @@ STDOUT:
       "id": 11,
       "amount": 500.00,
       "method": "upi",
-      "paid_at": "2026-10-15 01:01:43.826305",
-      "request_id": "payment-e340b474-c805-11f1-8cc2-00155d2ed8eb",
+      "paid_at": "2026-10-15 02:18:18.799059",
+      "request_id": "payment-9611d6ed-c810-11f1-8cc2-00155d2ed8eb",
       "business_id": 1,
       "payment_type": "advance"
     }
   ],
   "subtotal": 1440.00,
   "_metadata": {
-    "etag": "fb50a7d7e6847ecad6b50db42f46e544"
+    "etag": "1269ee4045a82b9e215e1128dfc02446"
   },
   "gst_value": 72.00,
-  "created_at": "2026-10-15 01:01:43.826305",
-  "request_id": "order-e340a284-c805-11f1-8cc2-00155d2ed8eb",
+  "created_at": "2026-10-15 02:18:18.799059",
+  "request_id": "order-9611cfed-c810-11f1-8cc2-00155d2ed8eb",
   "business_id": 1,
   "delivery_at": "2026-10-03 10:00:00.000000",
   "order_status": "draft",
@@ -204,15 +204,15 @@ STDOUT:
 +-------------------+----------------------------------+
 | agent_sees_status | agent_etag                       |
 +-------------------+----------------------------------+
-| draft             | fb50a7d7e6847ecad6b50db42f46e544 |
+| draft             | 1269ee4045a82b9e215e1128dfc02446 |
 +-------------------+----------------------------------+
 +--------------------+----------------------------------+
 | status_after_staff | etag_after_staff                 |
 +--------------------+----------------------------------+
-| confirmed          | 3b326de4373b2d4feb43f9b851ea3167 |
+| confirmed          | f848d0105041097ea4d2889228aa8d93 |
 +--------------------+----------------------------------+
 STDERR:
-ERROR 6494 (HY000) at line 15: Cannot update JSON duality view. The ETAG of the document in the database did not match the ETAG '"fb50a7d7e6847ecad6b50db42f46e544"' passed in.
+ERROR 6494 (HY000) at line 15: Cannot update JSON duality view. The ETAG of the document in the database did not match the ETAG '"1269ee4045a82b9e215e1128dfc02446"' passed in.
 
 
 --- S4: agent retries with a fresh read: its change is applied, the staff confirmation is kept (as jdv_agent) ---
@@ -232,7 +232,7 @@ STDOUT:
 +--------------+----------------------------------+
 | fresh_status | fresh_etag                       |
 +--------------+----------------------------------+
-| confirmed    | 3b326de4373b2d4feb43f9b851ea3167 |
+| confirmed    | f848d0105041097ea4d2889228aa8d93 |
 +--------------+----------------------------------+
 +-----------+-----------------------------+
 | status    | delivery_address            |
@@ -352,8 +352,8 @@ STDOUT:
       "id": 11,
       "amount": 500.00,
       "method": "upi",
-      "paid_at": "2026-10-15 01:01:43.826305",
-      "request_id": "payment-e340b474-c805-11f1-8cc2-00155d2ed8eb",
+      "paid_at": "2026-10-15 02:18:18.799059",
+      "request_id": "payment-9611d6ed-c810-11f1-8cc2-00155d2ed8eb",
       "business_id": 1,
       "payment_type": "advance"
     },
@@ -361,19 +361,19 @@ STDOUT:
       "id": 12,
       "amount": 1012.00,
       "method": "cash",
-      "paid_at": "2026-10-15 01:01:44.079689",
-      "request_id": "payment-e367ae5c-c805-11f1-8cc2-00155d2ed8eb",
+      "paid_at": "2026-10-15 02:18:19.043063",
+      "request_id": "payment-9637767f-c810-11f1-8cc2-00155d2ed8eb",
       "business_id": 1,
       "payment_type": "final"
     }
   ],
   "subtotal": 1440.00,
   "_metadata": {
-    "etag": "d72cd4c9550a2598d8527d6e23e6c081"
+    "etag": "963688dffa63c1979ac2d46fc0329204"
   },
   "gst_value": 72.00,
-  "created_at": "2026-10-15 01:01:43.826305",
-  "request_id": "order-e340a284-c805-11f1-8cc2-00155d2ed8eb",
+  "created_at": "2026-10-15 02:18:18.799059",
+  "request_id": "order-9611cfed-c810-11f1-8cc2-00155d2ed8eb",
   "business_id": 1,
   "delivery_at": "2026-10-03 10:00:00.000000",
   "order_status": "confirmed",
@@ -386,7 +386,7 @@ STDOUT:
 +----+--------------------------------------------+--------------+-----------------------------+----------+-----------+---------+
 | id | request_id                                 | order_status | delivery_address            | subtotal | gst_value | total   |
 +----+--------------------------------------------+--------------+-----------------------------+----------+-----------+---------+
-| 10 | order-e340a284-c805-11f1-8cc2-00155d2ed8eb | confirmed    | 221 Brigade Road, Bengaluru |  1440.00 |     72.00 | 1512.00 |
+| 10 | order-9611cfed-c810-11f1-8cc2-00155d2ed8eb | confirmed    | 221 Brigade Road, Bengaluru |  1440.00 |     72.00 | 1512.00 |
 +----+--------------------------------------------+--------------+-----------------------------+----------+-----------+---------+
 +----+--------------------------+------------+--------------------+------+--------+----------+-----------+
 | id | name                     | product_id | product_variant_id | qty  | price  | gst_rate | gst_value |
@@ -397,7 +397,7 @@ STDOUT:
 +----+----------------------------------------------+--------------+--------+---------+----------------------------+
 | id | request_id                                   | payment_type | method | amount  | paid_at                    |
 +----+----------------------------------------------+--------------+--------+---------+----------------------------+
-| 11 | payment-e340b474-c805-11f1-8cc2-00155d2ed8eb | advance      | upi    |  500.00 | 2026-10-15 01:01:43.826305 |
-| 12 | payment-e367ae5c-c805-11f1-8cc2-00155d2ed8eb | final        | cash   | 1012.00 | 2026-10-15 01:01:44.079689 |
+| 11 | payment-9611d6ed-c810-11f1-8cc2-00155d2ed8eb | advance      | upi    |  500.00 | 2026-10-15 02:18:18.799059 |
+| 12 | payment-9637767f-c810-11f1-8cc2-00155d2ed8eb | final        | cash   | 1012.00 | 2026-10-15 02:18:19.043063 |
 +----+----------------------------------------------+--------------+--------+---------+----------------------------+
 STDERR:

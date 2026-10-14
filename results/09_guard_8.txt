@@ -1,0 +1,22 @@
+-- run_sql.py -- 2026-10-14 20:48:07 UTC
+-- file: sql\09_guard_8.sql
+-- connecting user: jdv_admin
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
+Note (Code 1360): Trigger does not exist
+Note (Code 1360): Trigger does not exist
++-------------+--------+--------+-------------------+-------------------------------------+
+| on_table    | event  | timing | fires_in_position | TRIGGER_NAME                        |
++-------------+--------+--------+-------------------+-------------------------------------+
+| order_items | INSERT | BEFORE |                 1 | trg_order_items_guard_ins           |
+| order_items | INSERT | BEFORE |                 2 | trg_order_items_guard_tenant_ins    |
+| order_items | UPDATE | BEFORE |                 1 | trg_order_items_guard_upd           |
+| orders      | INSERT | BEFORE |                 1 | trg_orders_guards_ins               |
+| orders      | UPDATE | BEFORE |                 1 | trg_orders_guards_upd               |
+| orders      | UPDATE | BEFORE |                 2 | trg_orders_guard_business_immutable |
++-------------+--------+--------+-------------------+-------------------------------------+
++---------------+---------------------------+---------------------------+-----------------+
+| items_checked | product_in_other_business | variant_in_other_business | items_vs_orders |
++---------------+---------------------------+---------------------------+-----------------+
+|             9 |                         0 |                         0 | PASS            |
++---------------+---------------------------+---------------------------+-----------------+

@@ -33,9 +33,9 @@
 --           GUARD 4 does not cover this: it only checks an order's customer
 --           and outlet.
 --
--- Not covered here (known limitation, planned as GUARD 8): nothing checks
--- that an item's product or variant belongs to the same business as the
--- order. See docs/findings.md and docs/when-to-use.md.
+-- Not covered here: nothing in this file checks that an item's product or
+-- variant belongs to the same business as the order. That is GUARD 8 in
+-- sql/09_guard_8.sql (see docs/findings.md and docs/when-to-use.md).
 --
 -- The seed data in 01_schema.sql loads BEFORE these triggers exist, so the
 -- last query in this file proves the seed items agree with the catalog.
