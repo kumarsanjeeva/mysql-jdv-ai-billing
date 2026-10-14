@@ -1,0 +1,69 @@
+# Scripted agent scenarios (no API key) -- every call goes through agent/tools.py
+=== Part 1: Priya Sharma's order ===
+
+S1 find the customer
+  TOOL CALL get_customer: {"phone": "9900000001"}
+  -> OK: {"_id": 1, "name": "Priya Sharma", "phone": "9900000001", "orders": [{"id": 1, "total": 1470.00, "created_at": "2026-10-15 01:01:35.734889", "delivery_at": "2026-09-20 10:00:00.000000", "order_status": "confirmed"}, {"id": 4, "total": 525.00, "created_at": "2026-10-15 01:01:35.759780", "delivery_at": "2026-09-10 09:00:00.000000", "order_status": "cancelled"}, {"id": 6, "total": 1512.00, "created_at": "2026-10-15 01:01:41.561584", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "delivered"}, {"id": 10, "total": 1512.00, "created_at": "2026-10-15 01:01:43.826305", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 21, "total": 1512.00, "created_at": "2026-10-15 01:24:58.766441", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}], "address": "221 Brigade Road, Bengaluru", "_metadata": {"etag": "cffa5117002202feadef4b31d02f7a65"}, "business_id": 1}
+
+S2 search the catalog (cake)
+  TOOL CALL search_catalog: {"query": "Black Forest"}
+  -> OK: [{"_id": 1, "name": "Black Forest Cake", "price": 900.00, "is_mrp": 0, "gst_rate": 5.00, "variants": [{"id": 1, "size": 0.50, "unit": "kg", "price": 500.00, "flavor": "Chocolate"}, {"id": 2, "size": 1.00, "unit": "kg", "price": 900.00, "flavor": "Chocolate"}, {"id": 3, "size": 1.50, "unit": "kg", "price": 1300.00, "flavor": "Chocolate"}], "_metadata": {"etag": "a6bbb19172fb4a6cc48293cb2c529fad"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+
+S3 search the catalog (pastry)
+  TOOL CALL search_catalog: {"query": "Chocolate Truffle"}
+  -> OK: [{"_id": 3, "name": "Chocolate Truffle Pastry", "price": 90.00, "is_mrp": 0, "gst_rate": 5.00, "variants": null, "_metadata": {"etag": "8272f81f8dd645e3f1259f538b8176cc"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+
+S4 create the order (draft) with the Rs 500 advance
+  TOOL CALL create_order: {"order": {"request_id": "order-a7ac0334-bc57-43b8-8c8e-a0823253e395", "order_status": "draft", "delivery_at": "2026-10-03 10:00:00", "subtotal": 1440.0, "discount_type": "amount", "discount_value": 0.0, "gst_value": 72.0, "total": 1512.0, "outlet": {"id": 1}, "customer": {"id": 1}, "items": [{"qty": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "discount_value": 0.0, "name": "Black Forest Cake", "flavor": "Chocolate", "size": 1.0, "unit": "kg", "price": 900.0, "gst_rate": 5.0, "gst_value": 45.0, "product": {"id": 1}, "product_variant_id": 2}, {"qty": 6, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "discount_value": 0.0, "name": "Chocolate Truffle Pastry", "price": 90.0, "gst_rate": 5.0, "gst_value": 27.0, "product": {"id": 3}}], "payments": [{"business_id": 1, "request_id": "payment-862d34de-3d01-4b46-8207-1ab6a1db26be", "payment_type": "advance", "method": "upi", "amount": 500.0}]}}
+  -> OK: Created (4 row). Read it back with get_order(request_id='order-a7ac0334-bc57-43b8-8c8e-a0823253e395').
+
+S5 read it back
+  TOOL CALL get_order: {"request_id": "order-a7ac0334-bc57-43b8-8c8e-a0823253e395"}
+  -> OK: {"_id": 24, "items": [{"id": 22, "qty": 1.00, "name": "Black Forest Cake", "size": 1.00, "unit": "kg", "notes": null, "price": 900.00, "flavor": "Chocolate", "product": {"id": 1, "name": "Black Forest Cake"}, "gst_rate": 5.00, "gst_value": 45.00, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": 2}, {"id": 23, "qty": 6.00, "name": "Chocolate Truffle Pastry", "size": null, "unit": null, "notes": null, "price": 90.00, "flavor": null, "product": {"id": 3, "name": "Chocolate Truffle Pastry"}, "gst_rate": 5.00, "gst_value": 27.00, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": null}], "total": 1512.00, "outlet": {"id": 1, "name": "Sunrise Bakers - MG Road"}, "customer": {"id": 1, "name": "Priya Sharma", "phone": "9900000001"}, "payments": [{"id": 17, "amount": 500.00, "method": "upi", "paid_at": "2026-10-15 01:25:09.156591", "request_id": "payment-862d34de-3d01-4b46-8207-1ab6a1db26be", "business_id": 1, "payment_type": "advance"}], "subtotal": 1440.00, "_metadata": {"etag": "d5b781144ce5fd26a7bcc609187bb515"}, "gst_value": 72.00, "created_at": "2026-10-15 01:25:09.156591", "request_id": "order-a7ac0334-bc57-43b8-8c8e-a0823253e395", "balance_due": 1012.00, "business_id": 1, "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "draft", "discount_type": "amount", "discount_value": 0.00, "delivery_address": null, "cancellation_reason": null}
+
+S6 counter staff confirm the order while the agent still holds the old etag (simulated on the same agent account)
+
+S7 agent sets status 'ready' with its stale etag (the tool re-reads and retries once)
+  TOOL CALL update_order_status: {"order_id": 24, "status": "ready", "etag": "d5b781144ce5fd26a7bcc609187bb515"}
+  -> OK: The order had changed since you read it (MySQL error 6494: Cannot update JSON duality view. The ETAG of the document in the database did not match the ETAG '"d5b781144ce5fd26a7bcc609187bb515"' passed in.). Re-read it and retried once: status set to ready (1 row).
+
+S8 read the order: balance due
+  TOOL CALL get_order: {"order_id": 24}
+  -> OK: {"_id": 24, "items": [{"id": 22, "qty": 1.00, "name": "Black Forest Cake", "size": 1.00, "unit": "kg", "notes": null, "price": 900.00, "flavor": "Chocolate", "product": {"id": 1, "name": "Black Forest Cake"}, "gst_rate": 5.00, "gst_value": 45.00, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": 2}, {"id": 23, "qty": 6.00, "name": "Chocolate Truffle Pastry", "size": null, "unit": null, "notes": null, "price": 90.00, "flavor": null, "product": {"id": 3, "name": "Chocolate Truffle Pastry"}, "gst_rate": 5.00, "gst_value": 27.00, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": null}], "total": 1512.00, "outlet": {"id": 1, "name": "Sunrise Bakers - MG Road"}, "customer": {"id": 1, "name": "Priya Sharma", "phone": "9900000001"}, "payments": [{"id": 17, "amount": 500.00, "method": "upi", "paid_at": "2026-10-15 01:25:09.156591", "request_id": "payment-862d34de-3d01-4b46-8207-1ab6a1db26be", "business_id": 1, "payment_type": "advance"}], "subtotal": 1440.00, "_metadata": {"etag": "4b2cb248c2cc9c93c3d366c410284659"}, "gst_value": 72.00, "created_at": "2026-10-15 01:25:09.156591", "request_id": "order-a7ac0334-bc57-43b8-8c8e-a0823253e395", "balance_due": 1012.00, "business_id": 1, "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready", "discount_type": "amount", "discount_value": 0.00, "delivery_address": null, "cancellation_reason": null}
+
+S9 pay the balance
+  TOOL CALL add_payment: {"order_id": 24, "payment": {"request_id": "payment-c4c8da13-5b09-4de9-a584-4b70b75e8dac", "payment_type": "final", "method": "cash", "amount": 1012.0}}
+  -> OK: Payment recorded (1 row).
+
+S10 read the order again
+  TOOL CALL get_order: {"order_id": 24}
+  -> OK: {"_id": 24, "items": [{"id": 22, "qty": 1.00, "name": "Black Forest Cake", "size": 1.00, "unit": "kg", "notes": null, "price": 900.00, "flavor": "Chocolate", "product": {"id": 1, "name": "Black Forest Cake"}, "gst_rate": 5.00, "gst_value": 45.00, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": 2}, {"id": 23, "qty": 6.00, "name": "Chocolate Truffle Pastry", "size": null, "unit": null, "notes": null, "price": 90.00, "flavor": null, "product": {"id": 3, "name": "Chocolate Truffle Pastry"}, "gst_rate": 5.00, "gst_value": 27.00, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": null}], "total": 1512.00, "outlet": {"id": 1, "name": "Sunrise Bakers - MG Road"}, "customer": {"id": 1, "name": "Priya Sharma", "phone": "9900000001"}, "payments": [{"id": 17, "amount": 500.00, "method": "upi", "paid_at": "2026-10-15 01:25:09.156591", "request_id": "payment-862d34de-3d01-4b46-8207-1ab6a1db26be", "business_id": 1, "payment_type": "advance"}, {"id": 18, "amount": 1012.00, "method": "cash", "paid_at": "2026-10-15 01:25:09.189219", "request_id": "payment-c4c8da13-5b09-4de9-a584-4b70b75e8dac", "business_id": 1, "payment_type": "final"}], "subtotal": 1440.00, "_metadata": {"etag": "5eda84ce2095aed73ae0cdd8345ba292"}, "gst_value": 72.00, "created_at": "2026-10-15 01:25:09.156591", "request_id": "order-a7ac0334-bc57-43b8-8c8e-a0823253e395", "balance_due": 0, "business_id": 1, "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready", "discount_type": "amount", "discount_value": 0.00, "delivery_address": null, "cancellation_reason": null}
+
+=== Part 2: what the database refuses ===
+
+G1 refund recorded with a positive amount
+  TOOL CALL add_payment: {"order_id": 24, "payment": {"request_id": "payment-2aafd4ca-a0f2-49a4-8aa5-8c055af9a869", "payment_type": "refund", "method": "cash", "amount": 100.0}}
+  -> ERROR: MySQL error 3819: Check constraint 'chk_payments_amount_sign' is violated.
+
+G2 the same refund with a negative amount
+  TOOL CALL add_payment: {"order_id": 24, "payment": {"request_id": "payment-5fe74a99-e418-4e86-bbdb-2409dad0dee9", "payment_type": "refund", "method": "cash", "amount": -100.0}}
+  -> OK: Payment recorded (1 row).
+
+G3 retry create_order with the already-used request_id
+  TOOL CALL create_order: {"order": {"request_id": "order-a7ac0334-bc57-43b8-8c8e-a0823253e395", "order_status": "draft", "delivery_at": "2026-10-03 10:00:00", "subtotal": 1440.0, "discount_type": "amount", "discount_value": 0.0, "gst_value": 72.0, "total": 1512.0, "outlet": {"id": 1}, "customer": {"id": 1}, "items": [{"qty": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "discount_value": 0.0, "name": "Black Forest Cake", "flavor": "Chocolate", "size": 1.0, "unit": "kg", "price": 900.0, "gst_rate": 5.0, "gst_value": 45.0, "product": {"id": 1}, "product_variant_id": 2}, {"qty": 6, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "discount_value": 0.0, "name": "Chocolate Truffle Pastry", "price": 90.0, "gst_rate": 5.0, "gst_value": 27.0, "product": {"id": 3}}], "payments": [{"business_id": 1, "request_id": "payment-862d34de-3d01-4b46-8207-1ab6a1db26be", "payment_type": "advance", "method": "upi", "amount": 500.0}]}}
+  -> ERROR: MySQL error 1062: Duplicate entry 'order-a7ac0334-bc57-43b8-8c8e-a0823253e395' for key 'orders.uq_orders_request_id'
+
+G4 direct read of the orders table by the agent user
+  -> ERROR: MySQL error 1142: SELECT command denied to user 'jdv_agent'@'localhost' for table 'orders'
+
+G5 create_order with the cake at 100.00 instead of its catalog price (GUARD 6)
+  TOOL CALL create_order: {"order": {"request_id": "order-d40fe54d-4a3b-4d20-aa21-d98becac372e", "order_status": "draft", "delivery_at": "2026-10-03 10:00:00", "subtotal": 1440.0, "discount_type": "amount", "discount_value": 0.0, "gst_value": 72.0, "total": 1512.0, "outlet": {"id": 1}, "customer": {"id": 1}, "items": [{"qty": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "discount_value": 0.0, "name": "Black Forest Cake", "flavor": "Chocolate", "size": 1.0, "unit": "kg", "price": 100.0, "gst_rate": 5.0, "gst_value": 45.0, "product": {"id": 1}, "product_variant_id": 2}, {"qty": 6, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "discount_value": 0.0, "name": "Chocolate Truffle Pastry", "price": 90.0, "gst_rate": 5.0, "gst_value": 27.0, "product": {"id": 3}}], "payments": [{"business_id": 1, "request_id": "payment-96cb69a1-4e2a-434a-8ed8-4c43e51150af", "payment_type": "advance", "method": "upi", "amount": 500.0}]}}
+  -> ERROR: MySQL error 1644: GUARD 6: order_items.price does not match the current catalog price
+
+(order 5 belongs to the other business; it was found by reading order_dv without the business filter)
+
+G6 add_payment (business 1) to the other business's order (GUARD 7)
+  TOOL CALL add_payment: {"order_id": 5, "payment": {"request_id": "payment-befc3fb0-dc16-4ded-a2f6-ce522375e91d", "payment_type": "advance", "method": "cash", "amount": 100.0}}
+  -> ERROR: MySQL error 1644: GUARD 7: payments.business_id does not match the business_id of the order it pays
+
+All scenario steps behaved as expected.
