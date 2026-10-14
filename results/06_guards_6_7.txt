@@ -1,0 +1,23 @@
+-- run_sql.py -- 2026-10-14 19:31:35 UTC
+-- file: sql\06_guards_6_7.sql
+-- connecting user: jdv_admin
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
+Note (Code 1360): Trigger does not exist
+Note (Code 1360): Trigger does not exist
+Note (Code 1360): Trigger does not exist
++---------------------------------+--------+--------+-------------+
+| TRIGGER_NAME                    | event  | timing | on_table    |
++---------------------------------+--------+--------+-------------+
+| trg_order_items_guard_ins       | INSERT | BEFORE | order_items |
+| trg_order_items_guard_upd       | UPDATE | BEFORE | order_items |
+| trg_orders_guards_ins           | INSERT | BEFORE | orders      |
+| trg_orders_guards_upd           | UPDATE | BEFORE | orders      |
+| trg_payments_guard_business_ins | INSERT | BEFORE | payments    |
+| trg_payments_guard_immutable    | UPDATE | BEFORE | payments    |
++---------------------------------+--------+--------+-------------+
++---------------+----------------------------+-----------------+------------------------+-----------------+
+| items_checked | price_differs_from_catalog | no_catalog_link | variant_not_of_product | seed_vs_catalog |
++---------------+----------------------------+-----------------+------------------------+-----------------+
+|             9 |                          0 |               0 |                      0 | PASS            |
++---------------+----------------------------+-----------------+------------------------+-----------------+

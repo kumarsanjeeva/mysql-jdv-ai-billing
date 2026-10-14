@@ -217,3 +217,121 @@ Evidence: `results/repro_e27_jsontable_set_subquery.sql` / `.txt`
 Meaning: only the combination of a duality view's `data` column, `JSON_TABLE`
 and a scalar subquery in `SET` fails. Use `SELECT ... INTO @var` instead;
 `sql/05_scenario.sql` does.
+
+## GUARD 6 and GUARD 7 -- `sql/06_guards_6_7.sql`
+
+Two more database-level guards, in their own file. `scripts/reset_db.py` runs
+it after `00` -> `02`, so a rebuild always ends complete. Evidence:
+`results/06_guards_6_7.txt` (the six guard triggers now on the database, and
+the seed check below), `results/07_e28_item_price_guard.txt` (E28),
+`results/08_e29_payment_business_guard.txt` (E29). All three are real runs
+against MySQL 9.7.2 on local `localhost:3306`. Every error below was produced
+through `order_dv` / `payment_dv` as the agent user, except where marked admin.
+
+**GUARD 6 -- order item price** (`trg_order_items_guard_ins`,
+`trg_order_items_guard_upd` on `order_items`):
+
+- **INSERT:** an item must point at the catalog, and its `price` must equal the
+  current catalog price -- the variant's price if `product_variant_id` is set,
+  else the product's. Compared as DECIMAL with `<=>`.
+- **UPDATE:** `price`, `product_id` and `product_variant_id` cannot change.
+  Nothing is re-checked against the catalog on UPDATE, so a later catalog price
+  change never touches an existing item.
+
+**GUARD 7 -- payment business** (`trg_payments_guard_business_ins` on
+`payments`): on INSERT, `payments.business_id` must equal the `business_id` of
+the order the payment pays (a missing order also fails). It is BEFORE INSERT
+only; updates were already stopped by GUARD 5, so the two triggers do not
+interact and the `order_dv.payments` `WITH(INSERT, UPDATE)` design (E23) is
+unchanged. GUARD 4 did not cover this: it only checks an order's customer and
+outlet.
+
+**Additions in this repo** (deliberate, each added after a design
+review):
+
+1. **Variant must belong to the product.** If an item carries both
+   `product_id` and `product_variant_id`, the variant's product must be that
+   product. Without it, a cheap variant of one product could be attached to
+   another and still pass the price check (E28b4).
+2. **An item with neither a product nor a variant is rejected.** It has nothing
+   to be price-checked against, so allowing it would leave a hole (E28b3).
+3. **`product_id` and `product_variant_id` are immutable on UPDATE**, not only
+   `price` (E28c2, E28c3). Otherwise the checks in item 1 could be bypassed by
+   a later UPDATE that swaps the catalog link without touching the price.
+
+**Seed data.** The seed rows load before the triggers exist, so the end of
+`sql/06_guards_6_7.sql` checks them: 9 items checked; 0 differ from their
+catalog price, 0 have no catalog link, 0 have a variant of another product;
+`seed_vs_catalog = PASS` (`results/06_guards_6_7.txt`).
+
+### E28 -- GUARD 6 through `order_dv`
+
+Evidence: `sql/07_e28_item_price_guard.sql`, `results/07_e28_item_price_guard.txt`.
+All 17 blocks matched their expectation. Rejected blocks were written as
+"expect any error" and the real code and message are recorded here.
+
+| ID | Test | Result |
+|---|---|---|
+| E28a | Black Forest Cake 1 kg (variant 2) inserted at 900.00 | OK |
+| E28a2 | same, price sent as the JSON integer `900` | OK -- no false rejection from 900 vs 900.00 |
+| E28a3 | product-only item (pastry, no variant) at 90.00 | OK |
+| E28b | variant item at 100.00 | `ERROR 1644`: GUARD 6: order_items.price does not match the current catalog price |
+| E28b2 | product-only item at 80.00 | `ERROR 1644`: same message |
+| E28b3 | item with neither product nor variant | `ERROR 1644`: GUARD 6: order_items must reference a product or product variant, so the price can be checked against the catalog |
+| E28b4 | Vanilla variant 5 attached to Black Forest Cake (product 1), at 750.00 | `ERROR 1644`: GUARD 6: order_items.product_variant_id does not belong to order_items.product_id |
+| E28c | existing item's price 900.00 -> 1.00 | `ERROR 1644`: GUARD 6: order_items.price, product_id and product_variant_id are immutable once inserted |
+| E28c2 | existing item's variant 2 -> 3 | `ERROR 1644`: same message |
+| E28c3 | existing item's product 1 -> 2 (`$.items[0].product.id`) | `ERROR 1644`: same message -- the change reached `order_items.product_id` through the view and GUARD 6 stopped it |
+| E28c4 | existing item's `notes` changed | OK -- the guard does not block other edits |
+
+**E28d -- a later catalog price change leaves existing items alone.** This is
+the one block that commits a real change (admin, because `catalog_dv` is
+read-only, E04). Safeguards: E28d1 first asserts the original price is the
+recorded 900.00 (it stops before changing anything otherwise); E28d3 restores
+it; E28d4 asserts it is back. Order of events:
+
+| ID | Step | Result |
+|---|---|---|
+| E28d1 | admin: variant 2 price 900.00 -> 950.00, committed | `original price recorded: 900.00`; 1 row changed; catalog now 950.00 |
+| E28d2 | agent: read `seed-order-001`, write it back through `order_dv` (rolled back) | the old item still reads 900.00 while `catalog_dv` says 950.00; the write-back succeeds with the item still at 900.00 |
+| E28d2b | agent: NEW item at the old price 900.00 | `ERROR 1644`: price does not match the current catalog price |
+| E28d2c | agent: NEW item at 950.00 | OK |
+| E28d3 | admin: variant 2 restored to 900.00 | 900.00 |
+| E28d4 | assertion: price is back to the recorded value | `PASS: catalog price restored to 900.00`; 0 of the three Black Forest variants differ from their seed prices |
+
+Consequences worth stating: if the catalog changes between the agent reading a
+price and inserting the item, the insert is rejected (E28d2b shows the effect);
+and since `order_dv` has no DELETE and the price is immutable, a wrongly priced
+item that did get in cannot be corrected through the view -- only an admin can.
+
+### E29 -- GUARD 7 through `payment_dv` and `order_dv`
+
+Evidence: `sql/08_e29_payment_business_guard.sql`,
+`results/08_e29_payment_business_guard.txt`. All 3 blocks matched.
+
+| ID | Test | Result |
+|---|---|---|
+| E29a | payment for `seed-order-002` (business 1) with `business_id` 1, via `payment_dv` | OK -- payment and order both show business 1 (rolled back) |
+| E29b | same payment with `business_id` 2 | `ERROR 1644`: GUARD 7: payments.business_id does not match the business_id of the order it pays |
+| E29c | new order (business 1) created through `order_dv` with a nested payment of `business_id` 2 | `ERROR 1644`: same message |
+
+### Regression after adding GUARD 6 and 7
+
+After `scripts/reset_db.py` (which now includes `06`), `sql/03_dml_demos.sql`
+(H01-H07) ran with exit code 0; `sql/04_edge_cases.sql` -- all 25 blocks
+(E01-E18, REFUND1/2, E25, E26, check) PASS; `sql/05_scenario.sql` -- all 6
+blocks PASS. Evidence: the regenerated `results/03_dml_demos.txt`,
+`results/04_edge_cases.txt`, `results/05_scenario.txt`. E10 (order with product
+id 999999, expected `ERROR 6491`) still returns `ERROR 6491` with the view's
+own message ("Read-only subobject ... maps to row where `products`.id =
+(999999), which does not exist"), so GUARD 6 did not change that outcome.
+
+### Known limitation -- no cross-tenant check on items (planned: GUARD 8)
+
+Nothing in the database checks that an item's product or variant belongs to the
+same business as the order. GUARD 4 covers an order's customer and outlet, and
+GUARD 6 covers price and the product/variant pairing, but a business-1 order
+can still carry a business-2 product whose price matches its own catalog entry.
+Not fixed in this round, by decision. The same pattern as GUARD 4 would close
+it (a lookup of the product's `business_id` in a BEFORE INSERT trigger on
+`order_items`). It is recorded in `docs/when-to-use.md` as well.

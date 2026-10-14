@@ -1,6 +1,7 @@
 # reset_db.py -- rebuilds the demo database from nothing by running, in
 # order: sql/reset_drop_database.sql, sql/00_setup.sql, sql/01_schema.sql,
-# sql/02_duality_views.sql. Stops at the first file that fails.
+# sql/02_duality_views.sql, sql/06_guards_6_7.sql. Stops at the first file
+# that fails.
 #
 # Why it exists: every demo and edge-case run should start from the same
 # known state. All the actual work (dropping, creating, seeding, granting)
@@ -21,6 +22,7 @@ REBUILD_FILES = [
     ROOT / "sql" / "00_setup.sql",
     ROOT / "sql" / "01_schema.sql",
     ROOT / "sql" / "02_duality_views.sql",
+    ROOT / "sql" / "06_guards_6_7.sql",
 ]
 
 
@@ -33,7 +35,7 @@ def main() -> int:
         if rc != 0:
             print(f"\nStopped: {sql_path} failed. Fix the error above and re-run.", file=sys.stderr)
             return rc
-    print("\nDatabase rebuilt (drop -> 00_setup -> 01_schema -> 02_duality_views).")
+    print("\nDatabase rebuilt (drop -> 00_setup -> 01_schema -> 02_duality_views -> 06_guards_6_7).")
     return 0
 
 

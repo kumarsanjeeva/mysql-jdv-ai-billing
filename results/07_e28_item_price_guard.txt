@@ -1,0 +1,357 @@
+-- run_sql.py -- 2026-10-14 19:33:20 UTC
+-- file: sql\07_e28_item_price_guard.sql
+-- connecting user: per test, see below
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
+ID      DESCRIPTION                                                                                       EXPECT      ACTUAL      VERDICT
+E28a    item inserted at the catalog variant price (900.00)                                               OK          OK          PASS
+E28a2   same item with the price sent as the JSON integer 900 (no decimals)                               OK          OK          PASS
+E28a3   product-only item (no variant) inserted at the product price (90.00)                              OK          OK          PASS
+E28b    item with a variant inserted at the wrong price (100.00 instead of 900.00)                        ERROR       ERROR 1644  PASS
+E28b2   product-only item inserted at the wrong price (80.00 instead of 90.00)                            ERROR       ERROR 1644  PASS
+E28b3   item with neither a product nor a variant (nothing to check the price against)                    ERROR       ERROR 1644  PASS
+E28b4   variant of another product (Vanilla variant 5, 750.00) attached to Black Forest Cake (product 1)  ERROR       ERROR 1644  PASS
+E28c    existing item's price changed through order_dv (900.00 -> 1.00)                                   ERROR       ERROR 1644  PASS
+E28c2   existing item's variant changed through order_dv (variant 2 -> variant 3)                         ERROR       ERROR 1644  PASS
+E28c3   existing item's product changed through order_dv (product 1 -> product 2)                         ERROR       ERROR 1644  PASS
+E28c4   a harmless change to the same item (its notes) is still allowed                                   OK          OK          PASS
+E28d1   admin raises the catalog price of variant 2 from 900.00 to 950.00 (committed)                     OK          OK          PASS
+E28d2   agent: the old item is unchanged and the order still reads and writes back through order_dv       OK          OK          PASS
+E28d2b  agent: a NEW item at the old price 900.00 is now rejected (catalog says 950.00)                   ERROR       ERROR 1644  PASS
+E28d2c  agent: a NEW item at the new price 950.00 is accepted                                             OK          OK          PASS
+E28d3   admin restores the catalog price of variant 2 to the recorded 900.00                              OK          OK          PASS
+E28d4   assertion: the catalog price of variant 2 is back to the recorded 900.00                          OK          OK          PASS
+
+
+--- E28a: item inserted at the catalog variant price (900.00) (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e28a-correct-price","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Black Forest Cake","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":1},"product_variant_id":2}]}');
+SELECT JSON_VALUE(data, '$.items[0].price') AS e28a_item_price FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'e28a-correct-price';
+ROLLBACK;
+STDOUT:
++-----------------+
+| e28a_item_price |
++-----------------+
+| 900.00          |
++-----------------+
+STDERR:
+
+
+--- E28a2: same item with the price sent as the JSON integer 900 (no decimals) (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @base = '{"business_id":1,"request_id":"e28a2-integer-price","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Black Forest Cake","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":1},"product_variant_id":2}]}';
+SELECT JSON_EXTRACT(JSON_SET(@base, '$.items[0].price', 900), '$.items[0].price') AS price_as_sent;
+INSERT INTO order_dv VALUES(JSON_SET(@base, '$.items[0].price', 900));
+SELECT JSON_VALUE(data, '$.items[0].price') AS e28a2_item_price FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'e28a2-integer-price';
+ROLLBACK;
+STDOUT:
++---------------+
+| price_as_sent |
++---------------+
+| 900           |
++---------------+
++------------------+
+| e28a2_item_price |
++------------------+
+| 900.00           |
++------------------+
+STDERR:
+
+
+--- E28a3: product-only item (no variant) inserted at the product price (90.00) (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e28a3-product-only","order_status":"confirmed","subtotal":90.00,"discount_type":"amount","discount_value":0.00,"gst_value":4.50,"total":94.50,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Chocolate Truffle Pastry","qty":1,"price":90.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":4.50,"discount_value":0.00,"product":{"id":3}}]}');
+SELECT JSON_VALUE(data, '$.items[0].price') AS e28a3_item_price FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'e28a3-product-only';
+ROLLBACK;
+
+-- ------------------------------------------------------------
+-- E28b: inserts the guard must reject
+-- ------------------------------------------------------------
+STDOUT:
++------------------+
+| e28a3_item_price |
++------------------+
+| 90.00            |
++------------------+
+STDERR:
+
+
+--- E28b: item with a variant inserted at the wrong price (100.00 instead of 900.00) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @base = '{"business_id":1,"request_id":"e28b-wrong-price","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Black Forest Cake","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":1},"product_variant_id":2}]}';
+INSERT INTO order_dv VALUES(JSON_SET(@base, '$.items[0].price', 100.00));
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 4: GUARD 6: order_items.price does not match the current catalog price
+
+
+--- E28b2: product-only item inserted at the wrong price (80.00 instead of 90.00) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e28b2-wrong-product-price","order_status":"confirmed","subtotal":80.00,"discount_type":"amount","discount_value":0.00,"gst_value":4.00,"total":84.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Chocolate Truffle Pastry","qty":1,"price":80.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":4.00,"discount_value":0.00,"product":{"id":3}}]}');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 3: GUARD 6: order_items.price does not match the current catalog price
+
+
+--- E28b3: item with neither a product nor a variant (nothing to check the price against) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e28b3-no-catalog-link","order_status":"confirmed","subtotal":100.00,"discount_type":"amount","discount_value":0.00,"gst_value":5.00,"total":105.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Custom cake","qty":1,"price":100.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":5.00,"discount_value":0.00}]}');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 3: GUARD 6: order_items must reference a product or product variant, so the price can be checked against the catalog
+
+
+--- E28b4: variant of another product (Vanilla variant 5, 750.00) attached to Black Forest Cake (product 1) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @base = '{"business_id":1,"request_id":"e28b4-variant-of-other-product","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Black Forest Cake","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":1},"product_variant_id":2}]}';
+INSERT INTO order_dv VALUES(JSON_SET(@base, '$.items[0].product_variant_id', 5, '$.items[0].price', 750.00));
+ROLLBACK;
+
+-- ------------------------------------------------------------
+-- E28c: changes to an existing item
+-- ------------------------------------------------------------
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 4: GUARD 6: order_items.product_variant_id does not belong to order_items.product_id
+
+
+--- E28c: existing item's price changed through order_dv (900.00 -> 1.00) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-001');
+SELECT JSON_VALUE(@doc, '$.items[0].name') AS item_name, JSON_VALUE(@doc, '$.items[0].price') AS price_before;
+UPDATE order_dv SET data = JSON_SET(@doc, '$.items[0].price', 1.00)
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+STDOUT:
++-------------------+--------------+
+| item_name         | price_before |
++-------------------+--------------+
+| Black Forest Cake | 900.0        |
++-------------------+--------------+
+STDERR:
+ERROR 1644 (45000) at line 5: GUARD 6: order_items.price, product_id and product_variant_id are immutable once inserted
+
+
+--- E28c2: existing item's variant changed through order_dv (variant 2 -> variant 3) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-001');
+SELECT JSON_VALUE(@doc, '$.items[0].product_variant_id') AS variant_before;
+UPDATE order_dv SET data = JSON_SET(@doc, '$.items[0].product_variant_id', 3)
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+STDOUT:
++----------------+
+| variant_before |
++----------------+
+| 2              |
++----------------+
+STDERR:
+ERROR 1644 (45000) at line 5: GUARD 6: order_items.price, product_id and product_variant_id are immutable once inserted
+
+
+--- E28c3: existing item's product changed through order_dv (product 1 -> product 2) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-001');
+SELECT JSON_VALUE(@doc, '$.items[0].product.id') AS product_before;
+UPDATE order_dv SET data = JSON_SET(@doc, '$.items[0].product.id', 2)
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+STDOUT:
++----------------+
+| product_before |
++----------------+
+| 1              |
++----------------+
+STDERR:
+ERROR 1644 (45000) at line 5: GUARD 6: order_items.price, product_id and product_variant_id are immutable once inserted
+
+
+--- E28c4: a harmless change to the same item (its notes) is still allowed (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-001');
+UPDATE order_dv SET data = JSON_SET(@doc, '$.items[0].notes', 'no candles')
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+SELECT JSON_VALUE(data, '$.items[0].notes') AS notes_after, JSON_VALUE(data, '$.items[0].price') AS price_after
+  FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-001';
+ROLLBACK;
+
+-- ------------------------------------------------------------
+-- E28d: a later catalog price change must not touch existing items.
+-- Black Forest Cake 1 kg (variant 2): 900.00 -> 950.00, committed; then
+-- restored. E28d1..E28d4 run in this order.
+-- ------------------------------------------------------------
+STDOUT:
++-------------+-------------+
+| notes_after | price_after |
++-------------+-------------+
+| no candles  | 900.00      |
++-------------+-------------+
+STDERR:
+
+
+--- E28d1: admin raises the catalog price of variant 2 from 900.00 to 950.00 (committed) (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+-- Safeguard: stop here (error, nothing changed) unless the original price is the recorded 900.00.
+SELECT IF(price = 900.00, CONCAT('original price recorded: ', price), (SELECT 1 UNION SELECT 2)) AS original_price
+  FROM product_variants WHERE id = 2;
+UPDATE product_variants SET price = 950.00 WHERE id = 2 AND price = 900.00;
+SELECT ROW_COUNT() AS rows_changed;
+SELECT id, price AS catalog_price_now FROM product_variants WHERE id = 2;
+STDOUT:
++---------------------------------+
+| original_price                  |
++---------------------------------+
+| original price recorded: 900.00 |
++---------------------------------+
++--------------+
+| rows_changed |
++--------------+
+|            1 |
++--------------+
++----+-------------------+
+| id | catalog_price_now |
++----+-------------------+
+|  2 |            950.00 |
++----+-------------------+
+STDERR:
+
+
+--- E28d2: agent: the old item is unchanged and the order still reads and writes back through order_dv (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-001');
+SELECT JSON_VALUE(@doc, '$.items[0].price' RETURNING DECIMAL(10,2)) AS order_item_price,
+       (SELECT v.price FROM catalog_dv c,
+               JSON_TABLE(c.data, '$.variants[*]' COLUMNS (id BIGINT PATH '$.id', price DECIMAL(10,2) PATH '$.price')) v
+         WHERE JSON_VALUE(c.data, '$._id') = 1 AND v.id = 2) AS catalog_price_now;
+-- Assertion: the order item still says 900.00 (a mismatch is an error, so the verdict shows SURPRISE).
+SELECT IF(JSON_VALUE(@doc, '$.items[0].price' RETURNING DECIMAL(10,2)) = 900.00,
+          'old order item unchanged: 900.00', (SELECT 1 UNION SELECT 2)) AS old_item_check;
+START TRANSACTION;
+UPDATE order_dv SET data = JSON_SET(@doc, '$.delivery_address', 'e28d round trip')
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+SELECT JSON_VALUE(data, '$.delivery_address') AS address_after, JSON_VALUE(data, '$.items[0].price') AS item_price_after
+  FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-001';
+ROLLBACK;
+STDOUT:
++------------------+-------------------+
+| order_item_price | catalog_price_now |
++------------------+-------------------+
+|           900.00 |            950.00 |
++------------------+-------------------+
++----------------------------------+
+| old_item_check                   |
++----------------------------------+
+| old order item unchanged: 900.00 |
++----------------------------------+
++-----------------+------------------+
+| address_after   | item_price_after |
++-----------------+------------------+
+| e28d round trip | 900.00           |
++-----------------+------------------+
+STDERR:
+
+
+--- E28d2b: agent: a NEW item at the old price 900.00 is now rejected (catalog says 950.00) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e28d2b-old-price","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Black Forest Cake","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":1},"product_variant_id":2}]}');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 3: GUARD 6: order_items.price does not match the current catalog price
+
+
+--- E28d2c: agent: a NEW item at the new price 950.00 is accepted (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e28d2c-new-price","order_status":"confirmed","subtotal":950.00,"discount_type":"amount","discount_value":0.00,"gst_value":47.50,"total":997.50,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Black Forest Cake","qty":1,"price":950.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":47.50,"discount_value":0.00,"product":{"id":1},"product_variant_id":2}]}');
+SELECT JSON_VALUE(data, '$.items[0].price') AS e28d2c_item_price FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'e28d2c-new-price';
+ROLLBACK;
+STDOUT:
++-------------------+
+| e28d2c_item_price |
++-------------------+
+| 950.00            |
++-------------------+
+STDERR:
+
+
+--- E28d3: admin restores the catalog price of variant 2 to the recorded 900.00 (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+UPDATE product_variants SET price = 900.00 WHERE id = 2;
+SELECT id, price AS catalog_price_after_restore FROM product_variants WHERE id = 2;
+STDOUT:
++----+-----------------------------+
+| id | catalog_price_after_restore |
++----+-----------------------------+
+|  2 |                      900.00 |
++----+-----------------------------+
+STDERR:
+
+
+--- E28d4: assertion: the catalog price of variant 2 is back to the recorded 900.00 (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SELECT IF(price = 900.00, CONCAT('PASS: catalog price restored to ', price), (SELECT 1 UNION SELECT 2)) AS restore_check
+  FROM product_variants WHERE id = 2;
+SELECT COUNT(*) AS variants_not_matching_seed
+  FROM product_variants WHERE (id = 1 AND price <> 500.00) OR (id = 2 AND price <> 900.00) OR (id = 3 AND price <> 1300.00);
+STDOUT:
++----------------------------------------+
+| restore_check                          |
++----------------------------------------+
+| PASS: catalog price restored to 900.00 |
++----------------------------------------+
++----------------------------+
+| variants_not_matching_seed |
++----------------------------+
+|                          0 |
++----------------------------+
+STDERR:

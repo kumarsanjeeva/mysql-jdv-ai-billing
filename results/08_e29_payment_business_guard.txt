@@ -1,0 +1,58 @@
+-- run_sql.py -- 2026-10-14 19:33:21 UTC
+-- file: sql\08_e29_payment_business_guard.sql
+-- connecting user: per test, see below
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
+ID    DESCRIPTION                                                                                                  EXPECT      ACTUAL      VERDICT
+E29a  payment through payment_dv with the order's own business_id (1)                                              OK          OK          PASS
+E29b  payment through payment_dv with a different business_id (2) than its order (1)                               ERROR       ERROR 1644  PASS
+E29c  new order created through order_dv with a nested payment whose business_id (2) differs from the order's (1)  ERROR       ERROR 1644  PASS
+
+
+--- E29a: payment through payment_dv with the order's own business_id (1) (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @order_id = (SELECT JSON_VALUE(data, '$._id') FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-002');
+INSERT INTO payment_dv VALUES(JSON_OBJECT(
+    'business_id', 1, 'request_id', 'e29a-matching-business', 'payment_type', 'installment',
+    'method', 'cash', 'amount', 100.00, 'order', JSON_OBJECT('id', CAST(@order_id AS UNSIGNED))));
+SELECT JSON_VALUE(data, '$.business_id') AS payment_business_id,
+       (SELECT JSON_VALUE(o.data, '$.business_id') FROM order_dv o WHERE JSON_VALUE(o.data, '$._id') = @order_id) AS order_business_id
+  FROM payment_dv WHERE JSON_VALUE(data, '$.request_id') = 'e29a-matching-business';
+ROLLBACK;
+STDOUT:
++---------------------+-------------------+
+| payment_business_id | order_business_id |
++---------------------+-------------------+
+| 1                   | 1                 |
++---------------------+-------------------+
+STDERR:
+
+
+--- E29b: payment through payment_dv with a different business_id (2) than its order (1) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @order_id = (SELECT JSON_VALUE(data, '$._id') FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-002');
+INSERT INTO payment_dv VALUES(JSON_OBJECT(
+    'business_id', 2, 'request_id', 'e29b-other-business', 'payment_type', 'installment',
+    'method', 'cash', 'amount', 100.00, 'order', JSON_OBJECT('id', CAST(@order_id AS UNSIGNED))));
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 4: GUARD 7: payments.business_id does not match the business_id of the order it pays
+
+
+--- E29c: new order created through order_dv with a nested payment whose business_id (2) differs from the order's (1) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e29c-nested-other-business","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Black Forest Cake","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":1},"product_variant_id":2}],"payments":[{"business_id":2,"request_id":"e29c-nested-payment","payment_type":"advance","method":"upi","amount":500.00}]}');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 3: GUARD 7: payments.business_id does not match the business_id of the order it pays
