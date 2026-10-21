@@ -1,0 +1,69 @@
+# Live agent run L1_normal_order -- provider gemini, model gemini-3.1-flash-lite
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+# Max 12 model calls per user turn (the cap applies to each user turn, scripted or not), max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+# scripted follow-up turns: 1 (fixed text, sent whatever the model replied)
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+[tokens this call: 938 in, 60 out, 0 thinking]
+
+TOOL CALL get_customer: {"phone": "9900000001"}
+TOOL RESULT: {"_id": 1, "name": "Priya Sharma", "phone": "9900000001", "orders": [{"id": 1, "total": 1470.00, "created_at": "2026-10-15 02:18:06.994689", "delivery_at": "2026-09-20 10:00:00.000000", "order_status": "confirmed"}, {"id": 4, "total": 525.00, "created_at": "2026-10-15 02:18:07.022203", "delivery_at": "2026-09-10 09:00:00.000000", "order_status": "cancelled"}, {"id": 6, "total": 1512.00, "created_at": "2026-10-15 02:18:16.908428", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "delivered"}, {"id": 10, "total": 1512.00, "created_at": "2026-10-15 02:18:18.799059", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 28, "total": 1512.00, "created_at": "2026-10-15 02:18:51.813402", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 39, "total": 1512.00, "created_at": "2026-10-15 02:23:56.114686", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 47, "total": 1512.00, "created_at": "2026-10-15 03:37:11.119468", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 72, "total": 1512.00, "created_at": "2026-10-15 03:44:36.839461", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 77, "total": 1512.00, "created_at": "2026-10-21 02:32:04.480064", "delivery_at": "2026-10-22 10:00:00.000000", "order_status": "confirmed"}], "address": "221 Brigade Road, Bengaluru", "_metadata": {"etag": "43ef8db1dcc21da1419905a7fb2a6a2d"}, "business_id": 1}
+
+TOOL CALL search_catalog: {"query": "Black Forest Cake"}
+TOOL RESULT: [{"_id": 1, "name": "Black Forest Cake", "price": 900.00, "is_mrp": 0, "gst_rate": 5.00, "variants": [{"id": 1, "size": 0.50, "unit": "kg", "price": 500.00, "flavor": "Chocolate"}, {"id": 2, "size": 1.00, "unit": "kg", "price": 900.00, "flavor": "Chocolate"}, {"id": 3, "size": 1.50, "unit": "kg", "price": 1300.00, "flavor": "Chocolate"}], "_metadata": {"etag": "a6bbb19172fb4a6cc48293cb2c529fad"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+
+TOOL CALL search_catalog: {"query": "pastry"}
+TOOL RESULT: [{"_id": 3, "name": "Chocolate Truffle Pastry", "price": 90.00, "is_mrp": 0, "gst_rate": 5.00, "variants": null, "_metadata": {"etag": "8272f81f8dd645e3f1259f538b8176cc"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+[pacing: waiting 8.2s (free tier: 5 requests/min)]
+[503 UNAVAILABLE, waiting 30s, retrying once]
+
+ASSISTANT: I found the Black Forest Cake (1 kg) for Rs 900.00 and Chocolate Truffle Pastries for Rs 90.00 each.
+
+Here is the breakdown for Priya Sharma's order for tomorrow:
+
+*   **Black Forest Cake (1 kg):** 1 x Rs 900.00 = Rs 900.00 (GST @ 5%: Rs 45.00)
+*   **Chocolate Truffle Pastries:** 6 x Rs 90.00 = Rs 540.00 (GST @ 5%: Rs 27.00)
+
+**Order Summary:**
+*   **Subtotal:** Rs 1440.00
+*   **Total GST:** Rs 72.00
+*   **Total Amount:** Rs 1512.00
+
+Please confirm if you would like me to proceed with creating this order and applying the Rs 500 advance payment via UPI.
+[tokens this call: 2331 in, 216 out, 0 thinking]
+[tokens this message: 3269 in, 276 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+[pacing: waiting 6.1s (free tier: 5 requests/min)]
+[tokens this call: 2554 in, 305 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"items": [{"product_variant_id": 2, "qty": 1, "flavor": "Chocolate", "discount_exempt": 0, "is_gst_inclusive": 0, "unit": "kg", "gst_applicable": 1, "gst_rate": 5, "product": {"id": 1}, "size": 1, "name": "Black Forest Cake", "gst_value": 45, "discount_value": 0, "price": 900}, {"qty": 6, "gst_applicable": 1, "unit": "piece", "gst_value": 27, "price": 90, "name": "Chocolate Truffle Pastry", "discount_exempt": 0, "gst_rate": 5, "discount_value": 0, "is_gst_inclusive": 0}], "order_status": "confirmed", "discount_type": "amount", "delivery_at": "2026-10-22 10:00:00", "customer": {"id": 1}, "payments": [{"method": "upi", "payment_type": "advance", "request_id": "pay-12345", "business_id": 1, "amount": 500}], "subtotal": 1440, "outlet": {"id": 1}, "total": 1512, "gst_value": 72, "request_id": "ord-98765", "discount_value": 0}}
+TOOL ERROR: MySQL error 1265: Data truncated for column 'unit' at row 1
+[pacing: waiting 6.8s (free tier: 5 requests/min)]
+[tokens this call: 2891 in, 305 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"delivery_at": "2026-10-22 10:00:00", "discount_type": "amount", "customer": {"id": 1}, "request_id": "ord-98765", "payments": [{"method": "upi", "request_id": "pay-12345", "amount": 500, "payment_type": "advance", "business_id": 1}], "order_status": "confirmed", "gst_value": 72, "outlet": {"id": 1}, "total": 1512, "subtotal": 1440, "items": [{"price": 900, "product_variant_id": 2, "product": {"id": 1}, "qty": 1, "name": "Black Forest Cake", "gst_applicable": 1, "is_gst_inclusive": 0, "discount_value": 0, "size": 1, "gst_rate": 5, "unit": "kg", "discount_exempt": 0, "flavor": "Chocolate", "gst_value": 45}, {"gst_value": 27, "unit": "pc", "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "price": 90, "gst_rate": 5, "name": "Chocolate Truffle Pastry", "qty": 6, "discount_value": 0}], "discount_value": 0}}
+TOOL ERROR: MySQL error 1265: Data truncated for column 'unit' at row 1
+[pacing: waiting 2.2s (free tier: 5 requests/min)]
+[503 UNAVAILABLE, waiting 30s, retrying once]
+[tokens this call: 3228 in, 305 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"payments": [{"method": "upi", "business_id": 1, "payment_type": "advance", "amount": 500, "request_id": "pay-12345"}], "discount_type": "amount", "items": [{"gst_value": 45, "name": "Black Forest Cake", "flavor": "Chocolate", "qty": 1, "product_variant_id": 2, "is_gst_inclusive": 0, "product": {"id": 1}, "gst_applicable": 1, "discount_exempt": 0, "discount_value": 0, "unit": "kg", "price": 900, "size": 1, "gst_rate": 5}, {"discount_value": 0, "price": 90, "is_gst_inclusive": 0, "gst_applicable": 1, "unit": "unit", "name": "Chocolate Truffle Pastry", "qty": 6, "discount_exempt": 0, "gst_rate": 5, "gst_value": 27}], "order_status": "confirmed", "subtotal": 1440, "delivery_at": "2026-10-22 10:00:00", "outlet": {"id": 1}, "gst_value": 72, "customer": {"id": 1}, "discount_value": 0, "total": 1512, "request_id": "ord-98765"}}
+TOOL ERROR: MySQL error 1265: Data truncated for column 'unit' at row 1
+[pacing: waiting 7.1s (free tier: 5 requests/min)]
+[tokens this call: 3565 in, 305 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"delivery_at": "2026-10-22 10:00:00", "discount_value": 0, "total": 1512, "customer": {"id": 1}, "payments": [{"business_id": 1, "payment_type": "advance", "request_id": "pay-12345", "method": "upi", "amount": 500}], "gst_value": 72, "discount_type": "amount", "items": [{"name": "Black Forest Cake", "discount_exempt": 0, "flavor": "Chocolate", "unit": "kg", "product_variant_id": 2, "price": 900, "qty": 1, "gst_rate": 5, "product": {"id": 1}, "size": 1, "discount_value": 0, "gst_value": 45, "is_gst_inclusive": 0, "gst_applicable": 1}, {"gst_rate": 5, "qty": 6, "discount_value": 0, "name": "Chocolate Truffle Pastry", "discount_exempt": 0, "price": 90, "is_gst_inclusive": 0, "gst_value": 27, "gst_applicable": 1, "unit": "p"}], "order_status": "confirmed", "outlet": {"id": 1}, "request_id": "ord-98765", "subtotal": 1440}}
+TOOL ERROR: MySQL error 1265: Data truncated for column 'unit' at row 1
+[pacing: waiting 8.0s (free tier: 5 requests/min)]
+
+ASSISTANT: I apologize, but I am encountering a system error ("Data truncated for column 'unit'") when trying to save the pastry item. It seems the system is having trouble accepting the unit value for the pastries.
+
+Could you please double-check if there's a specific unit format required for the pastries, or would you like me to try creating the order without specifying a unit?
+[tokens this call: 3902 in, 76 out, 0 thinking]
+[tokens this message: 16140 in, 1296 out, 0 thinking]

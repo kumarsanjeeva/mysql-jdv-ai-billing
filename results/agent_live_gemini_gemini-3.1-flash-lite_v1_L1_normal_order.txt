@@ -1,0 +1,63 @@
+# Live agent run L1_normal_order -- provider gemini, model gemini-3.1-flash-lite
+# Prompt/tool-description version: v1
+# L5 scripted turn wording: v1
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+# Max 12 model calls per user turn (the cap applies to each user turn, scripted or not), max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+# scripted follow-up turns: 1 (fixed text, sent whatever the model replied)
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+[tokens this call: 938 in, 60 out, 0 thinking]
+
+TOOL CALL search_catalog: {"query": "Black Forest Cake"}
+TOOL RESULT: [{"_id": 1, "name": "Black Forest Cake", "price": 900.00, "is_mrp": 0, "gst_rate": 5.00, "variants": [{"id": 1, "size": 0.50, "unit": "kg", "price": 500.00, "flavor": "Chocolate"}, {"id": 2, "size": 1.00, "unit": "kg", "price": 900.00, "flavor": "Chocolate"}, {"id": 3, "size": 1.50, "unit": "kg", "price": 1300.00, "flavor": "Chocolate"}], "_metadata": {"etag": "a6bbb19172fb4a6cc48293cb2c529fad"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+
+TOOL CALL search_catalog: {"query": "pastry"}
+TOOL RESULT: [{"_id": 3, "name": "Chocolate Truffle Pastry", "price": 90.00, "is_mrp": 0, "gst_rate": 5.00, "variants": null, "_metadata": {"etag": "8272f81f8dd645e3f1259f538b8176cc"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+
+TOOL CALL get_customer: {"phone": "9900000001"}
+TOOL RESULT: {"_id": 1, "name": "Priya Sharma", "phone": "9900000001", "orders": [{"id": 1, "total": 1470.00, "created_at": "2026-10-15 02:18:06.994689", "delivery_at": "2026-09-20 10:00:00.000000", "order_status": "confirmed"}, {"id": 4, "total": 525.00, "created_at": "2026-10-15 02:18:07.022203", "delivery_at": "2026-09-10 09:00:00.000000", "order_status": "cancelled"}, {"id": 6, "total": 1512.00, "created_at": "2026-10-15 02:18:16.908428", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "delivered"}, {"id": 10, "total": 1512.00, "created_at": "2026-10-15 02:18:18.799059", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 28, "total": 1512.00, "created_at": "2026-10-15 02:18:51.813402", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 39, "total": 1512.00, "created_at": "2026-10-15 02:23:56.114686", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 47, "total": 1512.00, "created_at": "2026-10-15 03:37:11.119468", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 72, "total": 1512.00, "created_at": "2026-10-15 03:44:36.839461", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}], "address": "221 Brigade Road, Bengaluru", "_metadata": {"etag": "309968a47abea4a4aaefe9326ef9eccd"}, "business_id": 1}
+[pacing: waiting 5.8s (free tier: 5 requests/min)]
+
+ASSISTANT: Priya Sharma would like to order:
+*   1x Black Forest Cake (1kg): Rs 900.00
+*   6x Chocolate Truffle Pastry: Rs 540.00 (6 x Rs 90.00)
+
+**Order Summary:**
+*   **Subtotal:** Rs 1440.00
+*   **GST (5%):** Rs 72.00
+*   **Total:** Rs 1512.00
+
+She wants to pay an advance of Rs 500.00 via UPI. Should I proceed with creating this order?
+[tokens this call: 2235 in, 138 out, 0 thinking]
+[tokens this message: 3173 in, 198 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+[pacing: waiting 5.6s (free tier: 5 requests/min)]
+[tokens this call: 2380 in, 287 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"payments": [{"method": "upi", "business_id": 1, "amount": 500, "request_id": "pay-priya-001", "payment_type": "advance"}], "total": 1512, "customer": {"id": 1}, "gst_value": 72, "outlet": {"id": 1}, "delivery_at": "2026-10-22 09:00:00", "subtotal": 1440, "items": [{"is_gst_inclusive": 0, "discount_value": 0, "product_variant_id": 2, "gst_rate": 5, "gst_value": 45, "flavor": "Chocolate", "qty": 1, "gst_applicable": 1, "price": 900, "discount_exempt": 0, "unit": "kg", "name": "Black Forest Cake", "size": 1}, {"gst_rate": 5, "gst_applicable": 1, "gst_value": 27, "unit": "piece", "is_gst_inclusive": 0, "discount_exempt": 0, "price": 90, "discount_value": 0, "qty": 6, "name": "Chocolate Truffle Pastry"}], "order_status": "confirmed", "request_id": "ord-priya-001"}}
+TOOL ERROR: MySQL error 1265: Data truncated for column 'unit' at row 1
+[tokens this call: 2699 in, 313 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"items": [{"product": {"id": 1}, "price": 900, "qty": 1, "discount_value": 0, "gst_applicable": 1, "name": "Black Forest Cake", "size": 1, "gst_value": 45, "is_gst_inclusive": 0, "discount_exempt": 0, "gst_rate": 5, "product_variant_id": 2, "unit": "kg", "flavor": "Chocolate"}, {"gst_rate": 5, "gst_value": 27, "discount_exempt": 0, "price": 90, "product": {"id": 3}, "discount_value": 0, "gst_applicable": 1, "name": "Chocolate Truffle Pastry", "unit": "pc", "is_gst_inclusive": 0, "qty": 6}], "subtotal": 1440, "customer": {"id": 1}, "request_id": "ord-priya-001", "outlet": {"id": 1}, "gst_value": 72, "delivery_at": "2026-10-22 09:00:00", "order_status": "confirmed", "payments": [{"request_id": "pay-priya-001", "payment_type": "advance", "business_id": 1, "method": "upi", "amount": 500}], "total": 1512, "discount_value": 0, "discount_type": "amount"}}
+TOOL ERROR: MySQL error 1265: Data truncated for column 'unit' at row 1
+[pacing: waiting 2.0s (free tier: 5 requests/min)]
+[tokens this call: 3044 in, 313 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"payments": [{"request_id": "pay-priya-001", "amount": 500, "payment_type": "advance", "business_id": 1, "method": "upi"}], "total": 1512, "items": [{"unit": "kg", "product": {"id": 1}, "qty": 1, "gst_rate": 5, "flavor": "Chocolate", "discount_value": 0, "name": "Black Forest Cake", "product_variant_id": 2, "gst_applicable": 1, "price": 900, "is_gst_inclusive": 0, "size": 1, "gst_value": 45, "discount_exempt": 0}, {"discount_value": 0, "is_gst_inclusive": 0, "qty": 6, "unit": "unit", "gst_rate": 5, "discount_exempt": 0, "gst_applicable": 1, "price": 90, "gst_value": 27, "product": {"id": 3}, "name": "Chocolate Truffle Pastry"}], "delivery_at": "2026-10-22 09:00:00", "discount_value": 0, "customer": {"id": 1}, "outlet": {"id": 1}, "gst_value": 72, "order_status": "confirmed", "subtotal": 1440, "discount_type": "amount", "request_id": "ord-priya-001"}}
+TOOL ERROR: MySQL error 1265: Data truncated for column 'unit' at row 1
+[pacing: waiting 0.2s (free tier: 5 requests/min)]
+[tokens this call: 3389 in, 307 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"discount_value": 0, "delivery_at": "2026-10-22 09:00:00", "request_id": "ord-priya-001", "payments": [{"request_id": "pay-priya-001", "payment_type": "advance", "method": "upi", "amount": 500, "business_id": 1}], "total": 1512, "subtotal": 1440, "discount_type": "amount", "gst_value": 72, "items": [{"product": {"id": 1}, "name": "Black Forest Cake", "qty": 1, "discount_value": 0, "gst_rate": 5, "size": 1, "gst_applicable": 1, "gst_value": 45, "flavor": "Chocolate", "unit": "kg", "discount_exempt": 0, "product_variant_id": 2, "is_gst_inclusive": 0, "price": 900}, {"name": "Chocolate Truffle Pastry", "discount_value": 0, "discount_exempt": 0, "price": 90, "is_gst_inclusive": 0, "gst_value": 27, "gst_rate": 5, "qty": 6, "gst_applicable": 1, "product": {"id": 3}}], "customer": {"id": 1}, "outlet": {"id": 1}, "order_status": "confirmed"}}
+TOOL RESULT: Created: 4 rows written. Read it back with get_order(request_id='ord-priya-001').
+[pacing: waiting 7.8s (free tier: 5 requests/min)]
+
+ASSISTANT: The order for Priya Sharma has been successfully created (Order ID: ord-priya-001) for a total of Rs 1512.00, with an advance payment of Rs 500.00 via UPI recorded.
+[tokens this call: 3737 in, 53 out, 0 thinking]
+[tokens this message: 15249 in, 1273 out, 0 thinking]

@@ -1,0 +1,65 @@
+# Live agent run L1_normal_order -- provider gemini, model gemini-3.1-flash-lite
+# Prompt/tool-description version: v2
+# L5 scripted turn wording: v2
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+# Max 12 model calls per user turn (the cap applies to each user turn, scripted or not), max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+# scripted follow-up turns: 1 (fixed text, sent whatever the model replied)
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+[tokens this call: 1062 in, 60 out, 0 thinking]
+
+TOOL CALL search_catalog: {"query": "Black Forest Cake"}
+TOOL RESULT: [{"_id": 1, "name": "Black Forest Cake", "price": 900.00, "is_mrp": 0, "gst_rate": 5.00, "variants": [{"id": 1, "size": 0.50, "unit": "kg", "price": 500.00, "flavor": "Chocolate"}, {"id": 2, "size": 1.00, "unit": "kg", "price": 900.00, "flavor": "Chocolate"}, {"id": 3, "size": 1.50, "unit": "kg", "price": 1300.00, "flavor": "Chocolate"}], "_metadata": {"etag": "a6bbb19172fb4a6cc48293cb2c529fad"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+
+TOOL CALL search_catalog: {"query": "pastry"}
+TOOL RESULT: [{"_id": 3, "name": "Chocolate Truffle Pastry", "price": 90.00, "is_mrp": 0, "gst_rate": 5.00, "variants": null, "_metadata": {"etag": "8272f81f8dd645e3f1259f538b8176cc"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+
+TOOL CALL get_customer: {"phone": "9900000001"}
+TOOL RESULT: {"_id": 1, "name": "Priya Sharma", "phone": "9900000001", "orders": [{"id": 1, "total": 1470.00, "created_at": "2026-10-15 02:18:06.994689", "delivery_at": "2026-09-20 10:00:00.000000", "order_status": "confirmed"}, {"id": 4, "total": 525.00, "created_at": "2026-10-15 02:18:07.022203", "delivery_at": "2026-09-10 09:00:00.000000", "order_status": "cancelled"}, {"id": 6, "total": 1512.00, "created_at": "2026-10-15 02:18:16.908428", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "delivered"}, {"id": 10, "total": 1512.00, "created_at": "2026-10-15 02:18:18.799059", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 28, "total": 1512.00, "created_at": "2026-10-15 02:18:51.813402", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 39, "total": 1512.00, "created_at": "2026-10-15 02:23:56.114686", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 47, "total": 1512.00, "created_at": "2026-10-15 03:37:11.119468", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 72, "total": 1512.00, "created_at": "2026-10-15 03:44:36.839461", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}], "address": "221 Brigade Road, Bengaluru", "_metadata": {"etag": "309968a47abea4a4aaefe9326ef9eccd"}, "business_id": 1}
+[pacing: waiting 11.3s (free tier: 5 requests/min)]
+
+ASSISTANT: Which size of Black Forest Cake would Priya Sharma like? (Available sizes: 0.5kg for Rs 500, 1.0kg for Rs 900, 1.5kg for Rs 1300).
+
+Also, for the 6 pastries, would she like the "Chocolate Truffle Pastry" (Rs 90 each)?
+[tokens this call: 2359 in, 79 out, 0 thinking]
+[tokens this message: 3421 in, 139 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+[pacing: waiting 8.2s (free tier: 5 requests/min)]
+[tokens this call: 2445 in, 259 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"total": 1512, "delivery_at": "2026-10-22 00:00:00", "items": [{"unit": "kg", "name": "Black Forest Cake", "flavor": "Chocolate", "product_variant_id": 2, "gst_rate": 5, "gst_inclusive": false, "qty": 1, "product": {"id": 1}, "size": 1, "price": 900, "gst_applicable": 1}, {"gst_inclusive": false, "gst_rate": 5, "price": 90, "name": "Chocolate Truffle Pastry", "gst_applicable": 1, "qty": 6}], "payments": [{"business_id": 1, "payment_type": "advance", "amount": 500, "method": "upi", "request_id": "pay-priya-1022"}], "discount_type": "amount", "request_id": "ord-priya-1022", "discount_value": 0, "subtotal": 1440, "gst_value": 72, "status": "confirmed", "outlet": {"id": 1}, "customer": {"id": 1}}}
+TOOL ERROR: MySQL error 6489: Path '$.status' is not mapped to any column of `jdv_ai_billing`.`orders`.
+[pacing: waiting 7.8s (free tier: 5 requests/min)]
+[tokens this call: 2748 in, 255 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"delivery_at": "2026-10-22 00:00:00", "payments": [{"request_id": "pay-priya-1022", "business_id": 1, "method": "upi", "payment_type": "advance", "amount": 500}], "total": 1512, "request_id": "ord-priya-1022", "order_status": "confirmed", "gst_value": 72, "customer": {"id": 1}, "discount_type": "amount", "subtotal": 1440, "outlet": {"id": 1}, "discount_value": 0, "items": [{"flavor": "Chocolate", "qty": 1, "name": "Black Forest Cake", "product_variant_id": 2, "unit": "kg", "price": 900, "gst_inclusive": false, "gst_applicable": 1, "gst_rate": 5, "size": 1}, {"gst_rate": 5, "qty": 6, "gst_applicable": 1, "gst_inclusive": false, "name": "Chocolate Truffle Pastry", "price": 90}]}}
+TOOL ERROR: MySQL error 6489: Path '$.items[0].gst_inclusive' is not mapped to any column of `jdv_ai_billing`.`order_items`.
+[tokens this call: 3055 in, 259 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"discount_type": "amount", "request_id": "ord-priya-1022", "payments": [{"payment_type": "advance", "method": "upi", "request_id": "pay-priya-1022", "business_id": 1, "amount": 500}], "gst_value": 72, "outlet": {"id": 1}, "items": [{"qty": 1, "unit": "kg", "size": 1, "is_gst_inclusive": false, "price": 900, "name": "Black Forest Cake", "gst_rate": 5, "product_variant_id": 2, "gst_applicable": 1, "flavor": "Chocolate"}, {"price": 90, "gst_applicable": 1, "is_gst_inclusive": false, "name": "Chocolate Truffle Pastry", "qty": 6, "gst_rate": 5}], "delivery_at": "2026-10-22 00:00:00", "subtotal": 1440, "order_status": "confirmed", "customer": {"id": 1}, "total": 1512, "discount_value": 0}}
+TOOL ERROR: MySQL error 1644: GUARD 6: order_items must reference a product or product variant, so the price can be checked against the catalog
+[pacing: waiting 9.1s (free tier: 5 requests/min)]
+[tokens this call: 3359 in, 271 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"discount_value": 0, "order_status": "confirmed", "customer": {"id": 1}, "delivery_at": "2026-10-22 00:00:00", "payments": [{"business_id": 1, "payment_type": "advance", "request_id": "pay-priya-1022", "amount": 500, "method": "upi"}], "discount_type": "amount", "total": 1512, "gst_value": 72, "request_id": "ord-priya-1022", "outlet": {"id": 1}, "items": [{"is_gst_inclusive": false, "qty": 1, "unit": "kg", "gst_rate": 5, "flavor": "Chocolate", "product": {"id": 1}, "price": 900, "gst_applicable": 1, "size": 1, "product_variant_id": 2, "name": "Black Forest Cake"}, {"is_gst_inclusive": false, "gst_rate": 5, "name": "Chocolate Truffle Pastry", "qty": 6, "product": {"id": 3}, "price": 90, "gst_applicable": 1}], "subtotal": 1440}}
+TOOL RESULT: Created: 4 rows written. Read it back with get_order(request_id='ord-priya-1022').
+[pacing: waiting 8.0s (free tier: 5 requests/min)]
+
+ASSISTANT: The order has been successfully created for Priya Sharma (order request ID `ord-priya-1022`).
+
+**Order Summary:**
+*   **Items:** 1x 1.0kg Black Forest Cake, 6x Chocolate Truffle Pastries
+*   **Subtotal:** Rs 1,440.00
+*   **GST:** Rs 72.00
+*   **Total:** Rs 1,512.00
+*   **Advance Payment:** Rs 500.00 via UPI
+*   **Balance Due:** Rs 1,012.00
+*   **Pickup Date:** 2026-10-22
+[tokens this call: 3672 in, 153 out, 0 thinking]
+[tokens this message: 15279 in, 1197 out, 0 thinking]

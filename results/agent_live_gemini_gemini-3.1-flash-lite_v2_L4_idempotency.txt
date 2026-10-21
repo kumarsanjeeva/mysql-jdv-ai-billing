@@ -1,0 +1,23 @@
+# Live agent run L4_idempotency -- provider gemini, model gemini-3.1-flash-lite
+# Prompt/tool-description version: v2
+# L5 scripted turn wording: v2
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+# Max 12 model calls per user turn (the cap applies to each user turn, scripted or not), max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+# scripted follow-up turns: 1 (fixed text, sent whatever the model replied)
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+
+ASSISTANT: I have already processed this request for Priya Sharma. The order (ID 77) for a 1 kg Black Forest Cake and 6 Chocolate Truffle Pastries for pickup tomorrow has been confirmed. The total is Rs 1,512.00, with a Rs 500.00 advance payment already recorded, leaving a balance of Rs 1,012.00.
+[tokens this call: 4426 in, 85 out, 0 thinking]
+[tokens this message: 4426 in, 85 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+
+ASSISTANT: The order is already confirmed (ID 77). Would you like to do anything else for this customer or order?
+[tokens this call: 4518 in, 24 out, 0 thinking]
+[tokens this message: 4518 in, 24 out, 0 thinking]

@@ -1,0 +1,44 @@
+# results/38_v1_v2_comparison.txt -- factual side-by-side. Each column is ONE run of one model (gemini-3.1-flash-lite). No interpretation.
+# Numbers are copied from / counted in the transcripts named below (header lines starting with '#' are excluded from event counts).
+# Run 4 and the v1 baseline use prompt version v1; v2 uses prompt version v2 (UNIT_RULE_V2 on create_order, a duplicate-order bullet, the L5 scripted line). Starting data differ (see 'starting counts').
+# Token totals are the sum of the per-call lines '[tokens this call: in, out, thinking]'.
+
+## run 4 (v1)
+  transcripts: agent_live_gemini_gemini-3.1-flash-lite_L1_normal_order_v1_run4.txt ... agent_live_gemini_gemini-3.1-flash-lite_L5_balance_v1_run4.txt
+  starting counts: orders 12 (max id 77), order_items 23 (max 44), payments 22 (max 28)  [results/17, 'run 4 - before']; order 77 already present
+  ending counts: orders 12 (max 77), order_items 23 (max 44), payments 23 (max 29)  [results/17, 'run 4 - after']; exit 0, all five scenarios ran
+  create_order calls: 7; create_order results 'Created: ...': 0; order created: no
+  MySQL 1265 errors: 7; all tool errors by code: {'1265': 7}
+  L4 tool calls: ['get_customer', 'search_catalog', 'search_catalog', 'create_order', 'create_order', 'create_order']; L4 first model message: ASSISTANT: I have retrieved the details for Priya Sharma (ID: 1). We have the Black Forest Cake (1 kg) for Rs 900.00 and Chocolate Truffle Pastry for Rs 90.00 each.
+  L5 add_payment calls: 1; payments: [('upi', 1012)]; total 1012
+  model calls: 23; tokens in / out / thinking: 118301 / 3143 / 0
+  503 retry notices: 2; 429 events: 0; 'run stopped' lines: 0
+
+## v1 baseline (Phase 13)
+  transcripts: agent_live_gemini_gemini-3.1-flash-lite_v1_L1_normal_order.txt ... agent_live_gemini_gemini-3.1-flash-lite_v1_L5_balance.txt
+  starting counts: orders 11 (max 72), order_items 21 (max 41), payments 21 (max 27)  [results/17, 'v1 baseline - before']
+  ending counts: orders 12 (max 79), order_items 23 (max 46), payments 24 (max 30)  [results/17]; exit 0, all five scenarios ran
+  create_order calls: 4; create_order results 'Created: ...': 1; order created: yes
+  MySQL 1265 errors: 3; all tool errors by code: {'1265': 3}
+  L4 tool calls: ['get_order']; L4 first model message: ASSISTANT: Priya Sharma already has an existing order (ID 79) for the Black Forest Cake and 6 pastries, which is set for pickup tomorrow. An advance payment of Rs 500.00 has already been applied.
+  L5 add_payment calls: 2; payments: [('cash', 1012), ('upi', 1012)]; total 2024
+  model calls: 17; tokens in / out / thinking: 63779 / 2040 / 0
+  503 retry notices: 1; 429 events: 0; 'run stopped' lines: 0
+
+## v2 (Phase 14)
+  transcripts: agent_live_gemini_gemini-3.1-flash-lite_v2_L1_normal_order.txt ... agent_live_gemini_gemini-3.1-flash-lite_v2_L5_balance.txt
+  starting counts: orders 11 (max 72), order_items 21 (max 41), payments 21 (max 27)  [results/35, after restore]
+  ending counts: orders 12 (max 77), order_items 23 (max 44), payments 22 (max 28)  [results/17]; exit 1, STOPPED in L5_balance
+  create_order calls: 4; create_order results 'Created: ...': 1; order created: yes
+  MySQL 1265 errors: 0; all tool errors by code: {'6489': 2, '1644': 1}
+  L4 tool calls: none; L4 first model message: ASSISTANT: You have already placed this order for Priya Sharma (order request ID `ord-priya-1022`) for pickup on 2026-10-22.
+  L5 add_payment calls: 0; payments: none; total 0
+  model calls: 12; tokens in / out / thinking: 38703 / 1615 / 0
+  503 retry notices: 1; 429 events: 0; 'run stopped' lines: 1
+
+## Overpayment (database facts, from results/33, results/34, results/36, results/37, results/17 for run 4's payment 29)
+  run 4 (v1): one add_payment of 1012.00 on order 77 -- results/28_run4_readback.txt: order 77 total 1512.00, payments_sum 1512.00, balance_due_now 0.00; overpayment: no
+  v1 baseline: order 79 total 1512.00, payments 500.00 + 1012.00 + 1012.00 = 2524.00; overpayment: yes (1012.00)
+  v2: order 77 total 1512.00, payments 500.00 = 500.00; no L5 payment was made (run stopped before the first L5 reply); overpayment: no
+
+## Stop reason (v2): L5_balance first model call: HTTP 503 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.' -- the one coded retry (30 s) also returned 503; the run stopped and the scripted L5 turn was never sent.

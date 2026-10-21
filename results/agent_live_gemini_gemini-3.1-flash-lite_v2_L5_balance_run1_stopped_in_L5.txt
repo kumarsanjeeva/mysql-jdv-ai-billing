@@ -1,0 +1,16 @@
+# Live agent run L5_balance -- provider gemini, model gemini-3.1-flash-lite
+# Prompt/tool-description version: v2
+# L5 scripted turn wording: v2
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+# Max 12 model calls per user turn (the cap applies to each user turn, scripted or not), max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+# scripted follow-up turns: 1 (fixed text, sent whatever the model replied)
+
+USER: Priya came back, take the balance payment for her order.
+[pacing: waiting 8.1s (free tier: 5 requests/min)]
+[503 UNAVAILABLE, waiting 30s, retrying once]
+
+[run stopped: Gemini request failed (HTTP 503): This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.]

@@ -1,0 +1,68 @@
+# Live agent run L1_normal_order -- provider gemini, model gemini-3.1-flash-lite
+# Prompt/tool-description version: v2
+# L5 scripted turn wording: v2
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+# Max 12 model calls per user turn (the cap applies to each user turn, scripted or not), max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+# scripted follow-up turns: 1 (fixed text, sent whatever the model replied)
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+[tokens this call: 1062 in, 60 out, 0 thinking]
+
+TOOL CALL search_catalog: {"query": "Black Forest Cake"}
+TOOL RESULT: [{"_id": 1, "name": "Black Forest Cake", "price": 900.00, "is_mrp": 0, "gst_rate": 5.00, "variants": [{"id": 1, "size": 0.50, "unit": "kg", "price": 500.00, "flavor": "Chocolate"}, {"id": 2, "size": 1.00, "unit": "kg", "price": 900.00, "flavor": "Chocolate"}, {"id": 3, "size": 1.50, "unit": "kg", "price": 1300.00, "flavor": "Chocolate"}], "_metadata": {"etag": "a6bbb19172fb4a6cc48293cb2c529fad"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+
+TOOL CALL search_catalog: {"query": "pastry"}
+TOOL RESULT: [{"_id": 3, "name": "Chocolate Truffle Pastry", "price": 90.00, "is_mrp": 0, "gst_rate": 5.00, "variants": null, "_metadata": {"etag": "8272f81f8dd645e3f1259f538b8176cc"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+
+TOOL CALL get_customer: {"phone": "9900000001"}
+TOOL RESULT: {"_id": 1, "name": "Priya Sharma", "phone": "9900000001", "orders": [{"id": 1, "total": 1470.00, "created_at": "2026-10-15 02:18:06.994689", "delivery_at": "2026-09-20 10:00:00.000000", "order_status": "confirmed"}, {"id": 4, "total": 525.00, "created_at": "2026-10-15 02:18:07.022203", "delivery_at": "2026-09-10 09:00:00.000000", "order_status": "cancelled"}, {"id": 6, "total": 1512.00, "created_at": "2026-10-15 02:18:16.908428", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "delivered"}, {"id": 10, "total": 1512.00, "created_at": "2026-10-15 02:18:18.799059", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 28, "total": 1512.00, "created_at": "2026-10-15 02:18:51.813402", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 39, "total": 1512.00, "created_at": "2026-10-15 02:23:56.114686", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 47, "total": 1512.00, "created_at": "2026-10-15 03:37:11.119468", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 72, "total": 1512.00, "created_at": "2026-10-15 03:44:36.839461", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}], "address": "221 Brigade Road, Bengaluru", "_metadata": {"etag": "309968a47abea4a4aaefe9326ef9eccd"}, "business_id": 1}
+[pacing: waiting 8.7s (free tier: 5 requests/min)]
+[503 UNAVAILABLE, waiting 30s, retrying once]
+[tokens this call: 2359 in, 18 out, 0 thinking]
+
+TOOL CALL search_catalog: {"query": "Black Forest Cake"}
+TOOL RESULT: [{"_id": 1, "name": "Black Forest Cake", "price": 900.00, "is_mrp": 0, "gst_rate": 5.00, "variants": [{"id": 1, "size": 0.50, "unit": "kg", "price": 500.00, "flavor": "Chocolate"}, {"id": 2, "size": 1.00, "unit": "kg", "price": 900.00, "flavor": "Chocolate"}, {"id": 3, "size": 1.50, "unit": "kg", "price": 1300.00, "flavor": "Chocolate"}], "_metadata": {"etag": "a6bbb19172fb4a6cc48293cb2c529fad"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+[pacing: waiting 6.0s (free tier: 5 requests/min)]
+[503 UNAVAILABLE, waiting 30s, retrying once]
+
+ASSISTANT: The Black Forest Cake comes in 0.5 kg (Rs 500), 1 kg (Rs 900), and 1.5 kg (Rs 1300). Could you please confirm which size Priya Sharma would like? Also, for the 6 pastries, would she like the "Chocolate Truffle Pastry" (Rs 90 each)?
+[tokens this call: 2632 in, 79 out, 0 thinking]
+[tokens this message: 6053 in, 157 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+[pacing: waiting 2.7s (free tier: 5 requests/min)]
+[tokens this call: 2718 in, 275 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"outlet": {"id": 1}, "subtotal": 1440, "request_id": "ord-priya-12345", "customer": {"id": 1}, "items": [{"is_gst_inclusive": 0, "size": 1, "name": "Black Forest Cake", "product_variant_id": 2, "gst_rate": 5, "unit": "kg", "price": 900, "flavor": "Chocolate", "qty": 1, "product": {"id": 1}, "gst_applicable": 1}, {"unit": null, "price": 90, "qty": 6, "flavor": null, "gst_applicable": 1, "name": "Chocolate Truffle Pastry", "is_gst_inclusive": 0, "gst_rate": 5}], "discount_value": 0, "gst_value": 72, "payments": [{"payment_type": "advance", "business_id": 1, "request_id": "pay-priya-12345", "amount": 500, "method": "upi"}], "discount_type": "amount", "delivery_at": "2026-10-22 00:00:00", "order_status": "draft", "total": 1512}}
+TOOL ERROR: MySQL error 1644: GUARD 6: order_items must reference a product or product variant, so the price can be checked against the catalog
+[pacing: waiting 5.7s (free tier: 5 requests/min)]
+[tokens this call: 3030 in, 273 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"discount_type": "amount", "request_id": "ord-priya-12345", "outlet": {"id": 1}, "payments": [{"payment_type": "advance", "method": "upi", "amount": 500, "business_id": 1, "request_id": "pay-priya-12345"}], "total": 1512, "discount_value": 0, "delivery_at": "2026-10-22 00:00:00", "gst_value": 72, "order_status": "draft", "customer": {"id": 1}, "items": [{"gst_rate": 5, "size": 1, "unit": "kg", "price": 900, "is_gst_inclusive": 0, "flavor": "Chocolate", "gst_applicable": 1, "qty": 1, "product_variant_id": 2, "product": {"id": 1}, "name": "Black Forest Cake"}, {"gst_rate": 5, "product": {"id": 3}, "qty": 6, "price": 90, "is_gst_inclusive": 0, "name": "Chocolate Truffle Pastry", "gst_applicable": 1}], "subtotal": 1440}}
+TOOL RESULT: Created: 4 rows written. Read it back with get_order(request_id='ord-priya-12345').
+[pacing: waiting 6.0s (free tier: 5 requests/min)]
+[tokens this call: 3346 in, 27 out, 0 thinking]
+
+TOOL CALL get_order: {"request_id": "ord-priya-12345"}
+TOOL RESULT: {"_id": 77, "items": [{"id": 43, "qty": 1.00, "name": "Black Forest Cake", "size": 1.00, "unit": "kg", "notes": null, "price": 900.00, "flavor": "Chocolate", "product": {"id": 1, "name": "Black Forest Cake"}, "gst_rate": 5.00, "gst_value": 0.00, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": 2}, {"id": 44, "qty": 6.00, "name": "Chocolate Truffle Pastry", "size": null, "unit": null, "notes": null, "price": 90.00, "flavor": null, "product": {"id": 3, "name": "Chocolate Truffle Pastry"}, "gst_rate": 5.00, "gst_value": 0.00, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": null}], "total": 1512.00, "outlet": {"id": 1, "name": "Sunrise Bakers - MG Road"}, "customer": {"id": 1, "name": "Priya Sharma", "phone": "9900000001"}, "payments": [{"id": 28, "amount": 500.00, "method": "upi", "paid_at": "2026-10-21 11:23:47.665319", "request_id": "pay-priya-12345", "business_id": 1, "payment_type": "advance"}], "subtotal": 1440.00, "_metadata": {"etag": "0123d752242de008132e79ba9f4a5048"}, "gst_value": 72.00, "created_at": "2026-10-21 11:23:47.665319", "request_id": "ord-priya-12345", "balance_due": 1012.00, "business_id": 1, "delivery_at": "2026-10-22 00:00:00.000000", "order_status": "draft", "discount_type": "amount", "discount_value": 0.00, "delivery_address": null, "cancellation_reason": null}
+[pacing: waiting 9.0s (free tier: 5 requests/min)]
+[tokens this call: 4054 in, 60 out, 0 thinking]
+
+TOOL CALL update_order_status: {"status": "confirmed", "order_id": 77, "etag": "0123d752242de008132e79ba9f4a5048"}
+TOOL RESULT: Status set to confirmed (1 row written).
+[pacing: waiting 10.4s (free tier: 5 requests/min)]
+
+ASSISTANT: The order for Priya Sharma (order ID 77) has been confirmed. 
+
+- **Items:** 1x Black Forest Cake (1 kg) and 6x Chocolate Truffle Pastries.
+- **Total Amount:** Rs 1,512.00
+- **Advance Paid:** Rs 500.00 (UPI)
+- **Balance Due:** Rs 1,012.00
+- **Pickup Date:** 2026-10-22
+[tokens this call: 4138 in, 108 out, 0 thinking]
+[tokens this message: 17286 in, 743 out, 0 thinking]

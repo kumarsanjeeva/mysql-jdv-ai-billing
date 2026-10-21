@@ -1,0 +1,40 @@
+# Live agent run L4_idempotency -- provider gemini, model gemini-3.1-flash-lite
+# Prompt/tool-description version: v1
+# L5 scripted turn wording: v1
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+# Max 12 model calls per user turn (the cap applies to each user turn, scripted or not), max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+# scripted follow-up turns: 1 (fixed text, sent whatever the model replied)
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+[pacing: waiting 5.6s (free tier: 5 requests/min)]
+[tokens this call: 4029 in, 25 out, 0 thinking]
+
+TOOL CALL get_order: {"request_id": "ord-priya-001"}
+TOOL RESULT: {"_id": 79, "items": [{"id": 45, "qty": 1.00, "name": "Black Forest Cake", "size": 1.00, "unit": "kg", "notes": null, "price": 900.00, "flavor": "Chocolate", "product": {"id": 1, "name": "Black Forest Cake"}, "gst_rate": 5.00, "gst_value": 45.00, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": 2}, {"id": 46, "qty": 6.00, "name": "Chocolate Truffle Pastry", "size": null, "unit": null, "notes": null, "price": 90.00, "flavor": null, "product": {"id": 3, "name": "Chocolate Truffle Pastry"}, "gst_rate": 5.00, "gst_value": 27.00, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": null}], "total": 1512.00, "outlet": {"id": 1, "name": "Sunrise Bakers - MG Road"}, "customer": {"id": 1, "name": "Priya Sharma", "phone": "9900000001"}, "payments": [{"id": 28, "amount": 500.00, "method": "upi", "paid_at": "2026-10-21 04:21:28.370918", "request_id": "pay-priya-001", "business_id": 1, "payment_type": "advance"}], "subtotal": 1440.00, "_metadata": {"etag": "9cf7de0aca52b5508bfd3580428de42f"}, "gst_value": 72.00, "created_at": "2026-10-21 04:21:28.370918", "request_id": "ord-priya-001", "balance_due": 1012.00, "business_id": 1, "delivery_at": "2026-10-22 09:00:00.000000", "order_status": "confirmed", "discount_type": "amount", "discount_value": 0.00, "delivery_address": null, "cancellation_reason": null}
+[pacing: waiting 5.1s (free tier: 5 requests/min)]
+
+ASSISTANT: Priya Sharma already has an existing order (ID 79) for the Black Forest Cake and 6 pastries, which is set for pickup tomorrow. An advance payment of Rs 500.00 has already been applied.
+
+Would you like to modify this existing order, or were you looking to create a new one?
+[tokens this call: 4729 in, 68 out, 0 thinking]
+[tokens this message: 8758 in, 93 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+[pacing: waiting 6.1s (free tier: 5 requests/min)]
+
+ASSISTANT: I have already created that order for Priya Sharma (Request ID: ord-priya-001 / Order ID: 79). 
+
+The order currently includes:
+*   1 Black Forest Cake (1kg)
+*   6 Chocolate Truffle Pastries
+*   Advance payment of Rs 500.00 (UPI)
+*   Balance due: Rs 1012.00
+
+Is there anything else you would like me to do with this order, or is everything set?
+[tokens this call: 4804 in, 108 out, 0 thinking]
+[tokens this message: 4804 in, 108 out, 0 thinking]

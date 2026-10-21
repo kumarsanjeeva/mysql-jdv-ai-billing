@@ -1,0 +1,10 @@
+# Gemini run 2 (gemini-3.6-flash) -- database rows created (admin read-only counts)
+# The run stopped in L1 (HTTP 429, free-tier quota). The only write attempt, create_order,
+# was rejected by MySQL (error 1265) and wrote nothing.
+
+orders       before 11 rows, max id 72   after 11 rows, max id 72   -> added: none
+order_items  before 21 rows, max id 41   after 21 rows, max id 41   -> added: none
+payments     before 21 rows, max id 27   after 21 rows, max id 27   -> added: none
+
+Rows added or changed: NONE. (Counts and highest ids are unchanged.)
+Request ids the model generated and tried: ord-priya-20261021-001 / pay-priya-20261021-001.

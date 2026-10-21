@@ -1,0 +1,38 @@
+# Live agent run L5_balance -- provider gemini, model gemini-3.1-flash-lite
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+# Max 12 model calls per user turn (the cap applies to each user turn, scripted or not), max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+# scripted follow-up turns: 1 (fixed text, sent whatever the model replied)
+
+USER: Priya came back, take the balance payment for her order.
+[pacing: waiting 11.4s (free tier: 5 requests/min)]
+[tokens this call: 6940 in, 25 out, 0 thinking]
+
+TOOL CALL get_customer: {"phone": "9900000001"}
+TOOL RESULT: {"_id": 1, "name": "Priya Sharma", "phone": "9900000001", "orders": [{"id": 1, "total": 1470.00, "created_at": "2026-10-15 02:18:06.994689", "delivery_at": "2026-09-20 10:00:00.000000", "order_status": "confirmed"}, {"id": 4, "total": 525.00, "created_at": "2026-10-15 02:18:07.022203", "delivery_at": "2026-09-10 09:00:00.000000", "order_status": "cancelled"}, {"id": 6, "total": 1512.00, "created_at": "2026-10-15 02:18:16.908428", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "delivered"}, {"id": 10, "total": 1512.00, "created_at": "2026-10-15 02:18:18.799059", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 28, "total": 1512.00, "created_at": "2026-10-15 02:18:51.813402", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 39, "total": 1512.00, "created_at": "2026-10-15 02:23:56.114686", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 47, "total": 1512.00, "created_at": "2026-10-15 03:37:11.119468", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 72, "total": 1512.00, "created_at": "2026-10-15 03:44:36.839461", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 77, "total": 1512.00, "created_at": "2026-10-21 02:32:04.480064", "delivery_at": "2026-10-22 10:00:00.000000", "order_status": "confirmed"}], "address": "221 Brigade Road, Bengaluru", "_metadata": {"etag": "43ef8db1dcc21da1419905a7fb2a6a2d"}, "business_id": 1}
+[pacing: waiting 11.6s (free tier: 5 requests/min)]
+[tokens this call: 7900 in, 17 out, 0 thinking]
+
+TOOL CALL get_order: {"order_id": 77}
+TOOL RESULT: {"_id": 77, "items": [{"id": 43, "qty": 1.00, "name": "Black Forest Cake", "size": 1.00, "unit": "kg", "notes": null, "price": 900.00, "flavor": "Chocolate", "product": {"id": 1, "name": "Black Forest Cake"}, "gst_rate": 5.00, "gst_value": 45.00, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": 2}, {"id": 44, "qty": 6.00, "name": "Chocolate Truffle Pastry", "size": null, "unit": null, "notes": null, "price": 90.00, "flavor": null, "product": {"id": 3, "name": "Chocolate Truffle Pastry"}, "gst_rate": 5.00, "gst_value": 27.00, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": null}], "total": 1512.00, "outlet": {"id": 1, "name": "Sunrise Bakers - MG Road"}, "customer": {"id": 1, "name": "Priya Sharma", "phone": "9900000001"}, "payments": [{"id": 28, "amount": 500.00, "method": "upi", "paid_at": "2026-10-21 02:32:04.480064", "request_id": "pay-pf20261021-9901b", "business_id": 1, "payment_type": "advance"}], "subtotal": 1440.00, "_metadata": {"etag": "b08856ff799bdd2157e2560c7f22e2e8"}, "gst_value": 72.00, "created_at": "2026-10-21 02:32:04.480064", "request_id": "ord-pf20261021-9901a", "balance_due": 1012.00, "business_id": 1, "delivery_at": "2026-10-22 10:00:00.000000", "order_status": "confirmed", "discount_type": "amount", "discount_value": 0.00, "delivery_address": null, "cancellation_reason": null}
+[pacing: waiting 10.4s (free tier: 5 requests/min)]
+
+ASSISTANT: Priya Sharma has an outstanding balance of Rs 1012.00 for order #77. How would she like to pay the balance?
+[tokens this call: 8613 in, 32 out, 0 thinking]
+[tokens this message: 23453 in, 74 out, 0 thinking]
+
+[scripted user turn]
+USER: By UPI, the full remaining balance on the order you just created.
+[pacing: waiting 11.2s (free tier: 5 requests/min)]
+[tokens this call: 8661 in, 58 out, 0 thinking]
+
+TOOL CALL add_payment: {"payment": {"request_id": "pay-final-77-9901", "payment_type": "final", "method": "upi", "amount": 1012}, "order_id": 77}
+TOOL RESULT: Payment recorded: 1 row written.
+[pacing: waiting 11.2s (free tier: 5 requests/min)]
+
+ASSISTANT: The remaining balance of Rs 1012.00 for order #77 has been successfully paid by UPI.
+[tokens this call: 8740 in, 25 out, 0 thinking]
+[tokens this message: 17401 in, 83 out, 0 thinking]

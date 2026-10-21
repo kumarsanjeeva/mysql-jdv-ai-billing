@@ -1,0 +1,52 @@
+# results/43_v1_v2_comparison_final.txt -- factual table (results/38 is left as it is). EACH COLUMN IS ONE RUN of gemini-3.1-flash-lite. No interpretation.
+# Counted in the transcripts (header '#' lines excluded). Run 4 and the v1 baseline: prompt version v1; v2 runs: prompt version v2. Starting data differ for run 4.
+# Token totals = sums of the '[tokens this call: in, out, thinking]' lines. 'Model calls' = number of those lines.
+
+## run 4 (v1)  (transcripts: agent_live_gemini_gemini-3.1-flash-lite_L1_normal_order_v1_run4.txt ... agent_live_gemini_gemini-3.1-flash-lite_L5_balance_v1_run4.txt)
+  starting counts: orders 12 (max 77), order_items 23 (max 44), payments 22 (max 28); order 77 already present [results/17]
+  ending counts (orders / order_items / payments): 12 (max 77) / 23 (max 44) / 23 (max 29); exit 0, all five ran
+  create_order calls: 7; created-order results: 0; order created: no
+  MySQL error counts: 1265 = 7; 6489 = 0; 1644 = 0; other codes: none
+  L4 tool calls: ['get_customer', 'search_catalog', 'search_catalog', 'create_order', 'create_order', 'create_order']
+  L5 add_payment calls: 1; payments: [('upi', 1012)]; total 1012
+  order overpaid: no (results/28: order 77 total 1512.00, payments 1512.00)
+  L1-L4: model calls 18; tokens in/out/thinking 77447 / 2986 / 0
+  L5:    model calls 5; tokens in/out/thinking 40854 / 157 / 0
+  503 retry notices: 2; 429 events: 0; 'run stopped' lines: 0
+
+## v1 baseline  (transcripts: agent_live_gemini_gemini-3.1-flash-lite_v1_L1_normal_order.txt ... agent_live_gemini_gemini-3.1-flash-lite_v1_L5_balance.txt)
+  starting counts: orders 11 (max 72), order_items 21 (max 41), payments 21 (max 27) [results/17]
+  ending counts (orders / order_items / payments): 12 (max 79) / 23 (max 46) / 24 (max 30); exit 0, all five ran
+  create_order calls: 4; created-order results: 1; order created: yes
+  MySQL error counts: 1265 = 3; 6489 = 0; 1644 = 0; other codes: none
+  L4 tool calls: ['get_order']
+  L5 add_payment calls: 2; payments: [('cash', 1012), ('upi', 1012)]; total 2024
+  order overpaid: yes (order 79 total 1512.00, payments 2524.00)
+  L1-L4: model calls 13; tokens in/out/thinking 43655 / 1818 / 0
+  L5:    model calls 4; tokens in/out/thinking 20124 / 222 / 0
+  503 retry notices: 1; 429 events: 0; 'run stopped' lines: 0
+
+## v2 run 1 (stopped in L5)  (transcripts: agent_live_gemini_gemini-3.1-flash-lite_v2_L1_normal_order_run1_stopped_in_L5.txt ... agent_live_gemini_gemini-3.1-flash-lite_v2_L5_balance_run1_stopped_in_L5.txt)
+  starting counts: orders 11 (max 72), order_items 21 (max 41), payments 21 (max 27) [results/35]
+  ending counts (orders / order_items / payments): 12 (max 77) / 23 (max 44) / 22 (max 28); exit 1, stopped in L5 (503 after the retry)
+  create_order calls: 4; created-order results: 1; order created: yes
+  MySQL error counts: 1265 = 0; 6489 = 2; 1644 = 1; other codes: none
+  L4 tool calls: none
+  L5 add_payment calls: 0; payments: none; total 0
+  order overpaid: no (order 77 total 1512.00, payments 500.00; no L5 payment made)
+  L1-L4: model calls 12; tokens in/out/thinking 38703 / 1615 / 0
+  L5:    model calls 0; tokens in/out/thinking 0 / 0 / 0
+  503 retry notices: 1; 429 events: 0; 'run stopped' lines: 1
+
+## v2 run 2  (transcripts: agent_live_gemini_gemini-3.1-flash-lite_v2_L1_normal_order.txt ... agent_live_gemini_gemini-3.1-flash-lite_v2_L5_balance.txt)
+  starting counts: orders 11 (max 72), order_items 21 (max 41), payments 21 (max 27) [results/39, after the Phase 15 restore]
+  ending counts (orders / order_items / payments): 12 (max 77) / 23 (max 44) / 23 (max 29); exit 0, all five ran
+  create_order calls: 2; created-order results: 1; order created: yes
+  MySQL error counts: 1265 = 0; 6489 = 0; 1644 = 1; other codes: none
+  L4 tool calls: none
+  L5 add_payment calls: 1; payments: [('cash', 1012)]; total 1012
+  order overpaid: no (results/41: order 77 total 1512.00, payments 1512.00)
+  L1-L4: model calls 13; tokens in/out/thinking 45244 / 1096 / 0
+  L5:    model calls 4; tokens in/out/thinking 20533 / 210 / 0
+  503 retry notices: 2; 429 events: 0; 'run stopped' lines: 0
+

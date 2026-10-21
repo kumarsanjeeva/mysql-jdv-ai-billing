@@ -1,0 +1,9 @@
+# Live agent run L1_normal_order -- provider gemini, model gemini-3.8-flash
+# Thinking: thinking not configured (API default; Google docs list gemini-3.8-flash as 'On (medium)'; thought tokens count against the output cap)
+# Max 12 turns, max output 2048 tokens per call, today 2026-10-16; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+
+[run stopped: Gemini request failed (HTTP 503): This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.]

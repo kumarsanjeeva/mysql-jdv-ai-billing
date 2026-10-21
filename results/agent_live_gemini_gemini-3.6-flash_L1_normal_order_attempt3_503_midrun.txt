@@ -1,0 +1,26 @@
+# Live agent run L1_normal_order -- provider gemini, model gemini-3.6-flash
+# Thinking: thinking not configured (API default; Google docs list gemini-3.8-flash as 'On (medium)'; thought tokens count against the output cap)
+# Max 12 turns, max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+[tokens this call: 938 in, 60 out, 218 thinking]
+
+TOOL CALL get_customer: {"phone": "9900000001"}
+TOOL RESULT: {"_id": 1, "name": "Priya Sharma", "phone": "9900000001", "orders": [{"id": 1, "total": 1470.00, "created_at": "2026-10-15 02:18:06.994689", "delivery_at": "2026-09-20 10:00:00.000000", "order_status": "confirmed"}, {"id": 4, "total": 525.00, "created_at": "2026-10-15 02:18:07.022203", "delivery_at": "2026-09-10 09:00:00.000000", "order_status": "cancelled"}, {"id": 6, "total": 1512.00, "created_at": "2026-10-15 02:18:16.908428", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "delivered"}, {"id": 10, "total": 1512.00, "created_at": "2026-10-15 02:18:18.799059", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 28, "total": 1512.00, "created_at": "2026-10-15 02:18:51.813402", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 39, "total": 1512.00, "created_at": "2026-10-15 02:23:56.114686", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}, {"id": 47, "total": 1512.00, "created_at": "2026-10-15 03:37:11.119468", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "confirmed"}, {"id": 72, "total": 1512.00, "created_at": "2026-10-15 03:44:36.839461", "delivery_at": "2026-10-03 10:00:00.000000", "order_status": "ready"}], "address": "221 Brigade Road, Bengaluru", "_metadata": {"etag": "309968a47abea4a4aaefe9326ef9eccd"}, "business_id": 1}
+
+TOOL CALL search_catalog: {"query": "Black Forest Cake"}
+TOOL RESULT: [{"_id": 1, "name": "Black Forest Cake", "price": 900.00, "is_mrp": 0, "gst_rate": 5.00, "variants": [{"id": 1, "size": 0.50, "unit": "kg", "price": 500.00, "flavor": "Chocolate"}, {"id": 2, "size": 1.00, "unit": "kg", "price": 900.00, "flavor": "Chocolate"}, {"id": 3, "size": 1.50, "unit": "kg", "price": 1300.00, "flavor": "Chocolate"}], "_metadata": {"etag": "a6bbb19172fb4a6cc48293cb2c529fad"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+
+TOOL CALL search_catalog: {"query": "Pastry"}
+TOOL RESULT: [{"_id": 3, "name": "Chocolate Truffle Pastry", "price": 90.00, "is_mrp": 0, "gst_rate": 5.00, "variants": null, "_metadata": {"etag": "8272f81f8dd645e3f1259f538b8176cc"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+[tokens this call: 2453 in, 32 out, 60 thinking]
+
+TOOL CALL search_catalog: {"query": "cake"}
+TOOL RESULT: [{"_id": 1, "name": "Black Forest Cake", "price": 900.00, "is_mrp": 0, "gst_rate": 5.00, "variants": [{"id": 1, "size": 0.50, "unit": "kg", "price": 500.00, "flavor": "Chocolate"}, {"id": 2, "size": 1.00, "unit": "kg", "price": 900.00, "flavor": "Chocolate"}, {"id": 3, "size": 1.50, "unit": "kg", "price": 1300.00, "flavor": "Chocolate"}], "_metadata": {"etag": "a6bbb19172fb4a6cc48293cb2c529fad"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}, {"_id": 2, "name": "Vanilla Cake", "price": 750.00, "is_mrp": 0, "gst_rate": 5.00, "variants": [{"id": 4, "size": 0.50, "unit": "kg", "price": 400.00, "flavor": "Vanilla"}, {"id": 5, "size": 1.00, "unit": "kg", "price": 750.00, "flavor": "Vanilla"}], "_metadata": {"etag": "7e7f375a7811e6f1e5875dd3b8cc3f65"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}, {"_id": 4, "name": "Red Velvet Cake", "price": 950.00, "is_mrp": 0, "gst_rate": 5.00, "variants": [{"id": 6, "size": 0.50, "unit": "kg", "price": 550.00, "flavor": "Red Velvet"}, {"id": 7, "size": 1.00, "unit": "kg", "price": 950.00, "flavor": "Red Velvet"}], "_metadata": {"etag": "dc9034ac2bb35ea2c8b9a882d28ca4cd"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}, {"_id": 6, "name": "Dry Fruit Cake", "price": 1100.00, "is_mrp": 0, "gst_rate": 5.00, "variants": null, "_metadata": {"etag": "67e66608d1a53afbf4855c28db7780b9"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+
+TOOL CALL search_catalog: {"query": "chocolate"}
+TOOL RESULT: [{"_id": 3, "name": "Chocolate Truffle Pastry", "price": 90.00, "is_mrp": 0, "gst_rate": 5.00, "variants": null, "_metadata": {"etag": "8272f81f8dd645e3f1259f538b8176cc"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+
+[run stopped: Gemini request failed (HTTP 503): This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.]
