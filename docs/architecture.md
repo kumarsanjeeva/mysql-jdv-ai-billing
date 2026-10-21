@@ -74,7 +74,10 @@ never goes through them.
 
 Captured live runs used Gemini (`AGENT_PROVIDER=gemini`). Anthropic is
 implemented in `agent/agent.py` but no live Claude transcript is in
-`results/`. Arithmetic in `agent/scenarios.py` only stands in for the model.
+`results/`. Arithmetic in `agent/scenarios.py` only stands in for the model;
+MySQL still rejects a `total` that does not add up (GUARD 3, E35 in
+`results/49_guard_1_3_negative.txt`, tested with direct statements on `orders`
+as `jdv_admin`, not through `order_dv`).
 
 ## 2. Trust boundaries
 
@@ -127,9 +130,9 @@ Four independent layers, each exercised in [`findings.md`](findings.md):
    (`ERROR 6497`, E04b). Omitting an item or payment from an `order_dv`
    write is treated as DELETE, which the view refuses (`ERROR 6498`, E02/E03).
    One document per statement (E06–E08).
-3. **Triggers and CHECKs.** Tenant, price, payment immutability. (Quantity
-   and order-total rules also exist; no negative test is captured for them,
-   see the guard map.)
+3. **Triggers and CHECKs.** Tenant, quantity, price, order totals, payment
+   immutability (quantity and totals: E34 and E35, direct statements as
+   `jdv_admin`).
    Table triggers fire for any connection that writes the table; this was
    tested for `jdv_agent` (through `order_dv`) and `jdv_admin` (a direct
    `UPDATE payments`) only (E25/E26, E31c).
@@ -398,9 +401,9 @@ after-state; the lock itself is in `06`).
 
 | Guard | Where | Rule | Evidence |
 |---|---|---|---|
-| 1 | CHECK `order_items.qty > 0` | Quantity | no negative test captured |
+| 1 | CHECK `order_items.qty > 0` | Quantity | E34a, E34b: qty 0 and qty -1 give `ERROR 3819` (`chk_order_items_qty`); control E34c (qty 1) is accepted |
 | 2 | CHECK on `payments` | Refund amount &lt; 0; other types &gt; 0 | REFUND1 (a -500.00 refund is accepted) and REFUND2 (a positive refund is rejected, `ERROR 3819`); the "other types &gt; 0" half has no negative test |
-| 3 | BEFORE INSERT/UPDATE `orders` | `total = subtotal - discount_value + gst_value` | no negative test captured |
+| 3 | BEFORE INSERT/UPDATE `orders` | `total = subtotal - discount_value + gst_value` | E35a (UPDATE) and E35b (INSERT) give `ERROR 1644` GUARD 3; controls E35c (balanced change) and E35d accepted. A difference of up to 0.01 is accepted, 0.02 is rejected (E35d, E35e) |
 | 4 | same | customer and outlet belong to `orders.business_id` | E11 |
 | 5 | BEFORE UPDATE `payments` | No column may change | E25 agent via `order_dv`; E26 admin `UPDATE payments` |
 | 6 | INSERT/UPDATE `order_items` | Price matches catalog on insert; `price`, `product_id`, `product_variant_id`, `order_id` immutable after insert | E28, E33 |

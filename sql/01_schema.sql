@@ -281,7 +281,7 @@ CREATE TABLE payments (
 --          results/repro_payment_design_ab.sql (design B).
 --
 -- Whether these fire correctly when the write arrives through a JSON
--- Duality View (rather than a direct INSERT/UPDATE on orders) is tested case by case in the edge-case scripts under sql/ (see docs/findings.md for which cases; not every guard has a negative test).
+-- Duality View (rather than a direct INSERT/UPDATE on orders) is tested case by case in the edge-case scripts under sql/ (see docs/findings.md for which cases). Negative tests exist for GUARD 1 and GUARD 3 (sql/49, direct statements as admin); the "other types > 0" half of GUARD 2 has no negative test.
 -- ============================================================
 
 DELIMITER $$

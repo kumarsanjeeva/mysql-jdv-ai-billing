@@ -441,6 +441,30 @@ the GUARD 6 shown above. Re-applying `sql/09` restored the order; the evidence
 
 **Regression after the lock** (restored database, run after the order_id lock; shown in `results/32_regression_and_second_restore.txt` and `results/post_restore_*.txt`): `04` 25/25 PASS (E10 `ERROR 6491`); `05` 6/6; `07` 17/17; `08` 3/3; `11` 12 of 13 (the one SURPRISE is E32: expected 1062, actual 1644). Not shown by any results file after the lock: `13`, and the scripted agent scenarios S1-S10 and G1-G7. `03` was not re-run for this change.
 
+`49` was run later, on the then-current database, after the lock: 11 of 11 PASS, no SURPRISE (`results/49_guard_1_3_negative.txt`, section E34 and E35 below). That run was not made immediately after a reset; its own pre-check block `E49_PRE` confirmed the seed order it uses. The scripted agent scenarios after the lock are still not shown by any results file.
+
+## E34 and E35 -- GUARD 1 and GUARD 3 negative tests
+
+Until these tests, only the trigger and CHECK source for GUARD 1 (`order_items.qty > 0`) and GUARD 3 (`orders.total = subtotal - discount_value + gst_value`) was captured (`results/40_gst_guard_readonly_check.txt`); no run had shown either rejecting a bad row. `sql/49_guard_1_3_negative.sql` does that, in `results/49_guard_1_3_negative.txt`.
+
+It runs as `jdv_admin` with direct statements on `orders` and `order_items`, inside transactions that end with ROLLBACK. It runs after the reset, with the same preconditions as `sql/13` (the reset plus `sql/03`-`05`, `07`, `08`, `11`), and uses `seed-order-002` (subtotal 1290.00, discount_value 40.00, gst_value 62.50, total 1312.50, two items). All 11 blocks matched their expectation. Through `order_dv` or the agent these two guards were not tested.
+
+| Test | Statement | Expected | Actual | Verdict |
+|---|---|---|---|---|
+| E49_PRE | read-only: seed-order-002 amounts and items match the header | OK | OK | PASS |
+| E34a | insert item with qty 0 (product 3 at its catalog price) | `ERROR 3819` | `ERROR 3819`: Check constraint 'chk_order_items_qty' is violated | PASS |
+| E34b | insert item with qty -1 | `ERROR 3819` | `ERROR 3819`: Check constraint 'chk_order_items_qty' is violated | PASS |
+| E34c | control: same item with qty 1, rolled back | OK | OK, 1 row | PASS |
+| E34_UNCHANGED | seed-order-002 still has its 2 items (qty total 7); no E34 row | OK | OK | PASS |
+| E35a | `UPDATE orders SET total = 1313.50` (1.00 off) | `ERROR 1644` | `ERROR 1644`: GUARD 3: orders.total does not match subtotal - discount_value + gst_value | PASS |
+| E35b | insert order with subtotal 900.00, gst_value 45.00, total 1000.00 (should be 945.00) | `ERROR 1644` | `ERROR 1644`: GUARD 3 (same message) | PASS |
+| E35c | control: balanced change (discount_value 50.00, total 1302.50), rolled back | OK | OK, 1 row | PASS |
+| E35d | tolerance: total 1312.51 (off by exactly 0.01), rolled back | OK | OK, 1 row | PASS |
+| E35e | tolerance: total 1312.52 (off by 0.02) | `ERROR 1644` | `ERROR 1644`: GUARD 3 (same message) | PASS |
+| E35_UNCHANGED | seed-order-002 amounts original; no `e35b-wrong-total` order | OK | OK | PASS |
+
+In E34a and E34b no trigger rejected the row first: the error is the CHECK's. A difference of up to 0.01 is accepted and 0.02 is rejected, matching the `> 0.01` in the trigger.
+
 ## Known limits
 
 Six things this database does **not** enforce, or that were not tested. They
