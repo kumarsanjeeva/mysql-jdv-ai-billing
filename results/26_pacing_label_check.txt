@@ -1,0 +1,12 @@
+﻿PASS  gemini-3.1-flash-lite scenario header: # Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+PASS  gemini-3.1-flash-lite interactive header: # Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+PASS  PACE_SECONDS is still 13
+PASS  Anthropic's Pacing line is still: none
+---- 13s gap behaviour (agent.check_gemini_pacing, fake clock), run again ----
+(d) six calls        : start times (fake seconds)=[0.0, 13.0, 26.0, 39.0, 52.0, 65.0]
+                       gaps=[13.0, 13.0, 13.0, 13.0, 13.0]  total=65.0s  waits=[13.0, 13.0, 13.0, 13.0, 13.0]
+                       pacing lines logged: 5; first: [pacing: waiting 13.0s (free tier: 5 requests/min)]
+(e) first call       : started at fake t=0.0 with no wait before it (waits recorded before call 1: 0)
+    next call 5s later (a new scenario, same process): waited 8.0s -> start gap 13.0s
+PASS  six calls still start 13s apart, the first call has no wait
+RESULT: new pacing label in place; pacing behaviour unchanged (fake clock, no network).

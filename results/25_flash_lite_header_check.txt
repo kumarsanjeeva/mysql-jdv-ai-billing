@@ -1,0 +1,43 @@
+﻿----- gemini-3.1-flash-lite: scenario transcript header and first lines -----
+# Live agent run L1_normal_order -- provider gemini, model gemini-3.1-flash-lite
+# Prompt/tool-description version: v1
+# L5 scripted turn wording: v1
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+# Max 12 model calls per user turn (the cap applies to each user turn, scripted or not), max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+# scripted follow-up turns: 1 (fixed text, sent whatever the model replied)
+
+----- gemini-3.1-flash-lite: interactive transcript header -----
+# Billing assistant transcript -- provider gemini, model gemini-3.1-flash-lite
+# Prompt/tool-description version: v1
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+
+(a) PASS  flash-lite: both headers carry the exact 'not documented' line; no level is claimed (no 'On (', no 'medium', no 'not verified')
+(c) PASS  gemini-3.1-flash-lite: the per-call token line still prints 'in / out / thinking': [tokens this call: 10 in, 5 out, 7 thinking]
+----- gemini-3.6-flash: scenario transcript header and first lines -----
+# Live agent run L1_normal_order -- provider gemini, model gemini-3.6-flash
+# Prompt/tool-description version: v1
+# L5 scripted turn wording: v1
+# Thinking: thinking not configured; API default for gemini-3.6-flash per Google docs: On (medium); thought tokens count against the output cap
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+# Max 12 model calls per user turn (the cap applies to each user turn, scripted or not), max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+# scripted follow-up turns: 1 (fixed text, sent whatever the model replied)
+
+----- gemini-3.6-flash: interactive transcript header -----
+# Billing assistant transcript -- provider gemini, model gemini-3.6-flash
+# Prompt/tool-description version: v1
+# Thinking: thinking not configured; API default for gemini-3.6-flash per Google docs: On (medium); thought tokens count against the output cap
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+
+(b) PASS  3.6-flash: both headers still say 'On (medium)' in the earlier wording
+(c) PASS  gemini-3.6-flash: the per-call token line still prints 'in / out / thinking': [tokens this call: 10 in, 5 out, 7 thinking]
+RESULT: header wording is correct for a documented and an undocumented model (fake model, no network).

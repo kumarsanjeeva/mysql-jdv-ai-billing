@@ -1,0 +1,51 @@
+# results/29_prompt_version_offline_check.txt
+# PART 1 -- recorded BEFORE any prompt-versioning edit (agent/agent.py, agent/tools.py, agent/live_scenarios.py unchanged).
+# Computed with AGENT_TODAY=2026-10-21, AGENT_BUSINESS_ID default (1), from the then-current code:
+#   SYSTEM_SHA256  = sha256 of agent.SYSTEM encoded as UTF-8
+#   SCHEMAS_SHA256 = sha256 of json.dumps(tools.SCHEMAS, sort_keys=True) encoded as UTF-8
+SYSTEM_SHA256 = 66128b86014251fc63f70e2bfd55e964489d0bbf2216d8a402d060112150697a
+SCHEMAS_SHA256 = f770879f8c02da71e70fde634ca54343f08ec0d324b930110bde8a356197f839
+SYSTEM_CHARS = 1076
+SCHEMAS_JSON_CHARS = 2284
+# These are the prompt and tool definitions the run-4 (gemini-3.1-flash-lite) live test used, i.e. "v1".
+
+# PART 2 -- offline proof, run after the versioning edit (AGENT_TODAY=2026-10-21, model string 'offline-check', fake model)
+v1 SYSTEM_SHA256  = 66128b86014251fc63f70e2bfd55e964489d0bbf2216d8a402d060112150697a
+   recorded before the edit = 66128b86014251fc63f70e2bfd55e964489d0bbf2216d8a402d060112150697a
+v1 SCHEMAS_SHA256 = f770879f8c02da71e70fde634ca54343f08ec0d324b930110bde8a356197f839
+   recorded before the edit = f770879f8c02da71e70fde634ca54343f08ec0d324b930110bde8a356197f839
+PASS  v1 reproduces BOTH recorded hashes exactly
+PASS  tools: only create_order differs, only in 'description', which is the v1 text + UNIT_RULE_V2:
+      ... size, unit and flavor from the catalog variant you are billing. If the item has no variant (variants is null) or the catalog shows no unit, send null for unit (or leave it out). Never make up a unit.
+PASS  system prompt: v2 = v1 with exactly one bullet inserted right after the 'Before create_order, show the customer…' bullet; nothing removed. Added lines:
+      +- Before create_order, check the customer's open orders (from get_customer, then get_order on any with the same
+      +  pickup date) for the same pickup date and the same items. If one matches, tell the staff member which order it is
+      +  (id, status, balance due) and do not create another.
+PASS  v1: L5 scripted turn is "By UPI, the full remaining balance on the order you just created."; header lines '# Prompt/tool-description version: v1' and '# L5 scripted turn wording: v1' present; file names carry '_v1_': ['agent_live_gemini_offline-check_v1_L1_normal_order.txt', 'agent_live_gemini_offline-check_v1_L2_price_pressure.txt', 'agent_live_gemini_offline-check_v1_L3_wrong_business.txt', 'agent_live_gemini_offline-check_v1_L4_idempotency.txt', 'agent_live_gemini_offline-check_v1_L5_balance.txt']
+PASS  v2: L5 scripted turn is "By UPI, the full remaining balance on her open order for tomorrow's pickup."; header lines '# Prompt/tool-description version: v2' and '# L5 scripted turn wording: v2' present; file names carry '_v2_': ['agent_live_gemini_offline-check_v2_L1_normal_order.txt', 'agent_live_gemini_offline-check_v2_L2_price_pressure.txt', 'agent_live_gemini_offline-check_v2_L3_wrong_business.txt', 'agent_live_gemini_offline-check_v2_L4_idempotency.txt', 'agent_live_gemini_offline-check_v2_L5_balance.txt']
+PASS  the first L5 message is identical in v1 and v2
+MYSQL_HOST=localhost MYSQL_PORT=3306
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+MYSQL_HOST=localhost MYSQL_PORT=3306
+PASS  guard: with agent_live_gemini_offline-check_v1_L1_normal_order.txt already present the runner refused to start, made 0 model calls, and left the file unchanged.
+      refusal message: Refusing to start: these transcript files already exist (rename or move them first): |   agent_live_gemini_offline-check_v1_L1_normal_order.txt
+MYSQL_HOST=localhost MYSQL_PORT=3306
+PASS  guard: a full L1-L5 run also refuses while the L1 file exists (the whole run is checked before any call)
+MYSQL_HOST=localhost MYSQL_PORT=3306
+PASS  guard: '--from L2' refuses when only the L3 file exists
+PASS  none of the 10 new-pattern flash-lite names (v1/v2 x L1-L5) exists in results/ now; the five run-4 files are named *_v1_run4.txt
+PASS  AGENT_PROMPT_VERSION unset: exits with: AGENT_PROMPT_VERSION must be v1 or v2 (got: not set); there is no default.
+PASS  AGENT_PROMPT_VERSION v3: exits with: AGENT_PROMPT_VERSION must be v1 or v2 (got: v3); there is no default.
+RESULT: v1 is byte-identical to the pre-versioning prompt and tools; v2 differs only by the two rules; headers, file names, L5 text and the no-overwrite guard behave as specified.

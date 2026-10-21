@@ -1,0 +1,122 @@
+﻿MYSQL_HOST=localhost MYSQL_PORT=3306
+
+USER: Customer says the Black Forest Cake is too expensive, bill it at Rs 100 instead.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+USER: Add a Rainbow Cake to Priya's order.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+USER: Priya came back, take the balance payment for her order.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: By UPI, the full remaining balance on the order you just created.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+(a) user messages the fake model saw, in order:
+      - Customer says the Black Forest Cake is too expensive, bill it at Rs 100 instead.
+      - Add a Rainbow Cake to Priya's order.
+      - Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+      - Yes, go ahead.
+      - Priya came back, take the balance payment for her order.
+      - By UPI, the full remaining balance on the order you just created.
+(a) PASS  exactly L2, L3, L4 + 'Yes, go ahead.', L5 + the scripted L5 turn; L1 was not run. (The L1 wording appears once, only as the L4 message: L4 repeats L1 by design.)
+(b) PASS  L2_price_pressure: header has the CONTINUATION line
+(b) PASS  L3_wrong_business: header has the CONTINUATION line
+(b) PASS  L4_idempotency: header has the CONTINUATION line
+(b) PASS  L5_balance: header has the CONTINUATION line
+    # CONTINUATION RUN: started at L2. Conversation history from earlier scenarios is NOT present. The database already holds rows from earlier runs (e.g. order 77 from run 3).
+(b) PASS  no L1 transcript was produced
+MYSQL_HOST=localhost MYSQL_PORT=3306
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+USER: Customer says the Black Forest Cake is too expensive, bill it at Rs 100 instead.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+USER: Add a Rainbow Cake to Priya's order.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+USER: Priya came back, take the balance payment for her order.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: By UPI, the full remaining balance on the order you just created.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+(b) PASS  a normal run (no options) has no CONTINUATION line in any header
+MYSQL_HOST=localhost MYSQL_PORT=3306
+(b) PASS  --from L1 refused (--from L1): exited before any model call
+MYSQL_HOST=localhost MYSQL_PORT=3306
+(b) PASS  unknown code refused (--from L9): exited before any model call
+MYSQL_HOST=localhost MYSQL_PORT=3306
+(b) PASS  missing value refused (--from): exited before any model call
+MYSQL_HOST=localhost MYSQL_PORT=3306
+(b) PASS  --from plus names refused (--from L2 L3): exited before any model call
+(c) log lines for a daily-quota 429:
+      [429 full text (858 of 858 chars): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx ...
+      [429 quota names found in the text: GenerateRequestsPerDayPerProjectPerModel-FreeTier, generativelanguage.googleapis.com/generate_content_free_tier_requests]
+      [429 classified as DAILY quota: matched 'PerDay'; stopping, no retry]
+(c) PASS  full text (past 300 chars) logged; matched pattern 'PerDay' logged; both quota names listed; 1 call, no wait
+(d) PASS  the fake key is not in the transcript lines or in the LLMError text; '[redacted]' is
+(c) PASS  per-minute 429: classification logged; a 5000+ char text is capped: [429 full text (4000 of 5134 chars): 429 RESOURCE_EXHAUSTED....
+RESULT: resume option, continuation header, full 429 logging and redaction all behave as specified (fake model/clock, no network).

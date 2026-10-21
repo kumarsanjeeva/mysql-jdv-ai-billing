@@ -95,6 +95,8 @@ def call(name, args):
         return str(TOOLS[name](**args)), False
     except mysql.connector.Error as e:
         return f"MySQL error {e.errno}: {e.msg}", True
+    except Exception as e:  # bad tool name or arguments: report to the model instead of crashing
+        return f"Tool error ({type(e).__name__}): {e}", True
 
 
 TOOLS = {f.__name__: f for f in
@@ -107,6 +109,11 @@ ORDER_SCHEMA_NOTE = (
     "gst_applicable, discount_exempt, gst_value, discount_value, product {id}, product_variant_id (omit if none)}], "
     "optional payments [{business_id, request_id, payment_type ('advance'), method ('cash'|'upi'|'card'|'other'), amount}]. "
     "Prices and gst_rate come from search_catalog. total must equal subtotal - discount_value + gst_value.")
+
+# v2 only: appended to the create_order description.
+UNIT_RULE_V2 = (" For each item, take size, unit and flavor from the catalog variant you are billing. "
+                "If the item has no variant (variants is null) or the catalog shows no unit, send null for unit "
+                "(or leave it out). Never make up a unit.")
 
 SCHEMAS = [
     {"name": "search_catalog", "description": "Search the bakery catalog by product name. Returns products with price, gst_rate and variants.",
@@ -126,3 +133,10 @@ SCHEMAS = [
      "input_schema": {"type": "object", "properties": {"order_id": {"type": "integer"}, "status": {"type": "string"},
                                                        "etag": {"type": "string"}}, "required": ["order_id", "status", "etag"]}},
 ]
+
+
+def schemas(version):
+    """Return the tool definitions for a prompt version: 'v1' is exactly SCHEMAS; 'v2' adds the unit rule to create_order."""
+    if version == "v1":
+        return SCHEMAS
+    return [dict(s, description=s["description"] + UNIT_RULE_V2) if s["name"] == "create_order" else s for s in SCHEMAS]

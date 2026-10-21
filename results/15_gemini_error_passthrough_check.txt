@@ -1,0 +1,7 @@
+﻿tools.call text   : 'MySQL error 1644: GUARD 6: order_items.price does not match the current catalog price'
+is_error          : True
+gemini payload    : {'error': 'MySQL error 1644: GUARD 6: order_items.price does not match the current catalog price'}
+anthropic block   : {'type': 'tool_result', 'tool_use_id': 'c1', 'content': 'MySQL error 1644: GUARD 6: order_items.price does not match the current catalog price', 'is_error': True}
+bad-argument case : "Tool error (TypeError): search_catalog() got an unexpected keyword argument 'wrong_argument'" (is_error=True)
+RESULT: byte-for-byte match for both providers; bad arguments returned as errors.
+NOT covered here: the Gemini SDK's own Part object (needs google-genai; checked after install).

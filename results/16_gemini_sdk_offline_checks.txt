@@ -1,0 +1,27 @@
+﻿a) google-genai version: 2.31.0
+PASS  b) six declarations built  ['search_catalog', 'get_customer', 'get_order', 'create_order', 'add_payment', 'update_order_status']
+   tools with a bare object parameter: ['create_order', 'add_payment']
+   create_order parameters as the SDK holds them: {'type': 'object', 'properties': {'order': {'type': 'object'}}, 'required': ['order']}
+PASS  b) SDK accepted the schemas (validation only; the Gemini server may still reject them)  
+PASS  c) max_output_tokens is 2048  2048
+PASS  c) automatic function calling disabled  
+PASS  d) role is user  user
+PASS  d) function name kept  
+PASS  d) error string byte-for-byte  'MySQL error 1644: GUARD 6: order_items.price does not match the current catalog price'
+PASS  d) success result goes under 'result'  
+PASS  e) usage metadata has prompt_token_count  
+PASS  e) usage metadata has candidates_token_count  
+PASS  e) usage metadata has thoughts_token_count  
+PASS  e) Part has function_call  
+PASS  e) Part has thought  
+PASS  e) Part has text  
+PASS  e) FinishReason has STOP and MAX_TOKENS  
+PASS  f) APIError.code is 429  429
+PASS  f) APIError.message is readable  quota test
+PASS  f) str(error) contains the text the PerDay/retry matching reads  429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'quota test', 'status': 'RESOURCE_EXHAUSTED'}}
+PASS  f) ClientError is an APIError  
+   redact output: request failed for key [redacted] at host
+PASS  g) fake key not in output  
+PASS  g) [redacted] in output  
+PASS  history) plain text becomes a user Content; Content passes through unchanged  
+ALL OFFLINE CHECKS PASSED (no network used).

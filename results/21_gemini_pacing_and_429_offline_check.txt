@@ -1,0 +1,13 @@
+﻿info) the OLD pattern, run on this exact text, returns 59s -- so the 21s seen in the stopped run was not a misreading of this text; this text came with the SECOND 429 (the first 429's text was not logged).
+(a) text only        : waits=[61.398929665] log=["[429 full text (499 of 499 chars): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. * Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 5, model: gemini-3.6-flash Please retry in 59.398929665s.', 'status': 'RESOURCE_EXHAUSTED'}}]", '[429 quota names found in the text: generativelanguage.googleapis.com/generate_content_free_tier_requests]', "[429 classified as per-minute: neither 'per day' nor 'PerDay' appears in the text]", '[rate limited (HTTP 429); server asks 59.398929665s; waiting 61.4s, then retrying once]'] result=['ok']
+(a) text + field     : waits=[61.398929665] (text 'retry in 59.39s' preferred over field '59s')
+(a) field only      : waits=[61.0] (SDK retryDelay field '59s' + 2)
+(a) cap             : waits=[90] (server asked 500s, capped at 90)
+(b) 429 twice        : API calls=2 waits=[61.398929665] result=LLMError: Gemini request failed (HTTP 429): You exceeded your current ...
+(c) daily quota      : API calls=1 waits=[] result=LLMError: Gemini daily quota exhausted (HTTP 429); stopping,...
+(d) six calls        : start times (fake seconds)=[0.0, 13.0, 26.0, 39.0, 52.0, 65.0]
+                       gaps=[13.0, 13.0, 13.0, 13.0, 13.0]  total=65.0s  waits=[13.0, 13.0, 13.0, 13.0, 13.0]
+                       pacing lines logged: 5; first: [pacing: waiting 13.0s (free tier: 5 requests/min)]
+(e) first call       : started at fake t=0.0 with no wait before it (waits recorded before call 1: 0)
+    next call 5s later (a new scenario, same process): waited 8.0s -> start gap 13.0s
+RESULT: 429 wait = server delay + 2s (max 90s), one retry; daily quota stops at once; pacing >= 13s between starts (fake clock, no network).

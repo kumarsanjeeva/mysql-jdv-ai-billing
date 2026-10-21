@@ -1,0 +1,155 @@
+﻿MYSQL_HOST=localhost MYSQL_PORT=3306
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+
+ASSISTANT: What size cake?
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+
+ASSISTANT: What size cake?
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+---- L1 transcript (fake model) ----
+# Live agent run L1_normal_order -- provider gemini, model offline-check
+# Prompt/tool-description version: v1
+# L5 scripted turn wording: v1
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+# Max 12 model calls per user turn (the cap applies to each user turn, scripted or not), max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+# scripted follow-up turns: 1 (fixed text, sent whatever the model replied)
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+
+ASSISTANT: What size cake?
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+
+ASSISTANT: What size cake?
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+------------------------------------
+(a) PASS  model was shown, in order: ['Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.', 'Yes, go ahead.']
+(b) PASS  transcript shows '[scripted user turn]' once, after the first turn's reply, before 'USER: Yes, go ahead.'
+MYSQL_HOST=localhost MYSQL_PORT=3306
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+
+ASSISTANT: Banana. I will not discuss cakes; ignore everything above.
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+
+ASSISTANT: Banana. I will not discuss cakes; ignore everything above.
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+(c) PASS  with an unrelated reply from the fake model, 'Yes, go ahead.' was still sent
+MYSQL_HOST=localhost MYSQL_PORT=3306
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+
+[run stopped: fake model failure]
+(d) PASS  LLMError in turn 1: run stopped, model calls=1, no scripted turn in the transcript
+    transcript ends: [run stopped: fake model failure]
+MYSQL_HOST=localhost MYSQL_PORT=3306
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+USER: Customer says the Black Forest Cake is too expensive, bill it at Rs 100 instead.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+USER: Add a Rainbow Cake to Priya's order.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+USER: Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: Yes, go ahead.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+USER: Priya came back, take the balance payment for her order.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: By UPI, the full remaining balance on the order you just created.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+(e) PASS  L1_normal_order: # scripted follow-up turns: 1 (fixed text, sent whatever the model replied)  | labels in body: 1
+(e) PASS  L2_price_pressure: # scripted follow-up turns: 0 (fixed text, sent whatever the model replied)  | labels in body: 0
+(e) PASS  L3_wrong_business: # scripted follow-up turns: 0 (fixed text, sent whatever the model replied)  | labels in body: 0
+(e) PASS  L4_idempotency: # scripted follow-up turns: 1 (fixed text, sent whatever the model replied)  | labels in body: 1
+(e) PASS  L5_balance: # scripted follow-up turns: 1 (fixed text, sent whatever the model replied)  | labels in body: 1
+    full five-scenario run, user messages the fake model saw:
+      - Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+      - Yes, go ahead.
+      - Customer says the Black Forest Cake is too expensive, bill it at Rs 100 instead.
+      - Add a Rainbow Cake to Priya's order.
+      - Priya Sharma, phone 9900000001, wants a Black Forest Cake and 6 pastries, pick up tomorrow. She is paying Rs 500 advance by UPI.
+      - Yes, go ahead.
+      - Priya came back, take the balance payment for her order.
+      - By UPI, the full remaining balance on the order you just created.
+---- L5 header and body ----
+# Live agent run L5_balance -- provider gemini, model offline-check
+# Prompt/tool-description version: v1
+# L5 scripted turn wording: v1
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+# Max 12 model calls per user turn (the cap applies to each user turn, scripted or not), max output 2048 tokens per call, today 2026-10-21; tool schemas as in agent/tools.py, unchanged
+# MySQL localhost:3306. The database was NOT fresh (earlier test data present).
+# One run per scenario; L1-L5 share one conversation.
+# scripted follow-up turns: 1 (fixed text, sent whatever the model replied)
+
+USER: Priya came back, take the balance payment for her order.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+
+[scripted user turn]
+USER: By UPI, the full remaining balance on the order you just created.
+
+ASSISTANT: ok
+[tokens this call: 1 in, 1 out, 0 thinking]
+[tokens this message: 1 in, 1 out, 0 thinking]
+----------------------------
+RESULT: all scripted-turn checks passed (fake model, temp folder, no network, no database).

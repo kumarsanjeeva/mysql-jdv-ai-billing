@@ -1,0 +1,37 @@
+﻿(a) 503 then success
+    API calls=2  waits=[30]  log=['[503 UNAVAILABLE, waiting 30s, retrying once]']
+    result=['ok']
+(b) 503 twice
+    API calls=2  waits=[30]  log=['[503 UNAVAILABLE, waiting 30s, retrying once]']
+    result=LLMError: Gemini request failed (HTTP 503): This model is currently experiencing high demand.
+(c) HTTP 400 stops
+    API calls=1  waits=[]  log=[]
+    result=LLMError: Gemini request failed (HTTP 400): boom
+(c) HTTP 401 stops
+    API calls=1  waits=[]  log=[]
+    result=LLMError: Gemini request failed (HTTP 401): boom
+(c) HTTP 403 stops
+    API calls=1  waits=[]  log=[]
+    result=LLMError: Gemini request failed (HTTP 403): boom
+(c) HTTP 404 stops
+    API calls=1  waits=[]  log=[]
+    result=LLMError: Gemini request failed (HTTP 404): boom
+(c) HTTP 500 stops
+    API calls=1  waits=[]  log=[]
+    result=LLMError: Gemini request failed (HTTP 500): boom
+(c) HTTP 504 stops
+    API calls=1  waits=[]  log=[]
+    result=LLMError: Gemini request failed (HTTP 504): boom
+(c) non-HTTP failure stops
+    API calls=1  waits=[]  log=[]
+    result=LLMError: Gemini request failed (RuntimeError): network down
+(d) per-minute 429 retries once
+    API calls=2  waits=[20]  log=["[429 full text (133 of 133 chars): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'Quota exceeded for requests per minute', 'status': 'RESOURCE_EXHAUSTED'}}]", '[429 quota names found in the text: none]', "[429 classified as per-minute: neither 'per day' nor 'PerDay' appears in the text]", '[rate limited (HTTP 429); waiting 20s, then retrying once]']
+    result=['ok']
+(d) per-minute 429 twice stops
+    API calls=2  waits=[20]  log=["[429 full text (133 of 133 chars): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'Quota exceeded for requests per minute', 'status': 'RESOURCE_EXHAUSTED'}}]", '[429 quota names found in the text: none]', "[429 classified as per-minute: neither 'per day' nor 'PerDay' appears in the text]", '[rate limited (HTTP 429); waiting 20s, then retrying once]']
+    result=LLMError: Gemini request failed (HTTP 429): Quota exceeded for requests per minute
+(d) daily-quota 429 does not retry
+    API calls=1  waits=[]  log=["[429 full text (153 of 153 chars): 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier exceeded', 'status': 'RESOURCE_EXHAUSTED'}}]", '[429 quota names found in the text: none]', "[429 classified as DAILY quota: matched 'PerDay'; stopping, no retry]"]
+    result=LLMError: Gemini daily quota exhausted (HTTP 429); stopping, no retry. 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier exceeded', 'status': 'RESOURCE_EXHAUSTED'}}
+RESULT: all retry rules behave as specified (fake client and fake sleep; no network, no real wait).
