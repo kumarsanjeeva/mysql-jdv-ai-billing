@@ -1,0 +1,110 @@
+# Restore dry run -- 2026-10-21 03:11 local time
+# Dump: jdv_ai_billing_pre_live_agent_runs_2026-10-21.sql (53016 bytes, taken at 11 orders / 21 order_items / 21 payments)
+# Scratch database: jdv_restore_test (created, loaded, checked, dropped). The real database is only READ for comparison.
+
+create scratch database: exit 1 ERROR 1044 (42000) at line 1: Access denied for user 'jdv_admin'@'localhost' to database 'jdv_restore_test'
+SCRIPT ERROR: AssertionError: ERROR 1044 (42000) at line 1: Access denied for user 'jdv_admin'@'localhost' to database 'jdv_restore_test'
+
+
+drop scratch database jdv_restore_test: exit 1 ERROR 1044 (42000) at line 1: Access denied for user 'jdv_admin'@'localhost' to database 'jdv_restore_test'
+scratch database visible to this account: no (not listed)
+real database jdv_ai_billing visible to this account: yes (listed)
+temp credentials file removed: True
+
+==============================================================================
+# ATTEMPT 2 -- dry run after GRANT ALL ON jdv_restore_test.* -- 2026-10-21 03:18 local time
+# Dump: jdv_ai_billing_pre_live_agent_runs_2026-10-21.sql (53016 bytes, taken at 11 orders / 21 order_items / 21 payments)
+# Scratch database: jdv_restore_test. The real database (jdv_ai_billing) is only READ.
+
+## Step 1. does any executable line of the dump mention the real database name?
+  line 3: COMMENT | ...-- Host: 127.0.0.1    Database: jdv_ai_billing...
+  line 702: COMMENT | ...-- Dumping routines for database 'jdv_ai_billing'...
+  lines containing 'jdv_ai_billing': 2; non-comment: none
+  every `x`.`y` in executable lines has a TABLE as its first part: True (first parts: ['customers', 'order_items', 'orders', 'outlets', 'payments', 'product_variants', 'products'])
+  USE statements: none; CREATE DATABASE statements: none
+  RESULT: no executable statement names the real database; safe to load into a differently named database
+
+## Step 2. real database jdv_ai_billing: BEFORE dry run (read only)
+  orders rows: 12
+  orders max id: 77
+  order_items rows: 23
+  order_items max id: 44
+  payments rows: 23
+  payments max id: 29
+  triggers: 8
+  duality views: 4
+
+## Step 3. create the scratch database (same character set and collation as the real one) and load the dump
+  real database default character set / collation: utf8mb4 / utf8mb4_unicode_ci
+  create jdv_restore_test: exit 0 
+  load dump into jdv_restore_test: exit 0
+  load stdout (with --show-warnings): (nothing printed)
+  load stderr: (none)
+
+## Step 4. checks in jdv_restore_test
+  orders rows: 11
+  orders max id: 72
+  order_items rows: 21
+  order_items max id: 41
+  payments rows: 21
+  payments max id: 27
+  triggers: 8
+  duality views: 4
+PASS  orders rows = 11 (expected 11)
+PASS  order_items rows = 21 (expected 21)
+PASS  payments rows = 21 (expected 21)
+PASS  triggers = 8 (expected 8)
+PASS  duality views = 4 (expected 4)
+
++--------------------+-------------------------------------+--------------------+---------------+--------------+
+| EVENT_OBJECT_TABLE | TRIGGER_NAME                        | EVENT_MANIPULATION | ACTION_TIMING | ACTION_ORDER |
++--------------------+-------------------------------------+--------------------+---------------+--------------+
+| order_items        | trg_order_items_guard_ins           | INSERT             | BEFORE        |            1 |
+| order_items        | trg_order_items_guard_tenant_ins    | INSERT             | BEFORE        |            2 |
+| order_items        | trg_order_items_guard_upd           | UPDATE             | BEFORE        |            1 |
+| orders             | trg_orders_guards_ins               | INSERT             | BEFORE        |            1 |
+| orders             | trg_orders_guards_upd               | UPDATE             | BEFORE        |            1 |
+| orders             | trg_orders_guard_business_immutable | UPDATE             | BEFORE        |            2 |
+| payments           | trg_payments_guard_business_ins     | INSERT             | BEFORE        |            1 |
+| payments           | trg_payments_guard_immutable        | UPDATE             | BEFORE        |            1 |
++--------------------+-------------------------------------+--------------------+---------------+--------------+
+PASS  order_items BEFORE INSERT: trg_order_items_guard_ins ACTION_ORDER=1 fires before trg_order_items_guard_tenant_ins ACTION_ORDER=2
+
++-------------+------------+
+| TABLE_NAME  | TABLE_TYPE |
++-------------+------------+
+| catalog_dv  | VIEW       |
+| customer_dv | VIEW       |
+| order_dv    | VIEW       |
+| payment_dv  | VIEW       |
++-------------+------------+
+PASS  SELECT COUNT(*) FROM catalog_dv = 10
+PASS  SELECT COUNT(*) FROM customer_dv = 5
+PASS  SELECT COUNT(*) FROM order_dv = 11
+PASS  SELECT COUNT(*) FROM payment_dv = 21
+
+  AUTO_INCREMENT of the three tables (scratch database, as loaded from the dump):
+    orders: 76
+    order_items: 42
+    payments: 28
+
+PASS  trigger list (tables, names, events, timing, ACTION_ORDER) identical to the real database's
+PASS  view list identical to the real database's
+
+## Step 5. real database AFTER the dry run (read only)
+  orders rows: 12
+  orders max id: 77
+  order_items rows: 23
+  order_items max id: 44
+  payments rows: 23
+  payments max id: 29
+  triggers: 8
+  duality views: 4
+PASS  AFTER equals BEFORE (rows, max ids, triggers, views)
+PASS  matches the expected 12 / 23 / 23 with max ids 77 / 44 / 29
+
+## Step 6. drop the scratch database jdv_restore_test (jdv_repro_scratch and jdv_ai_billing are not touched)
+  drop jdv_restore_test: exit 0 
+  jdv_restore_test still listed: False
+  jdv_repro_scratch objects (unchanged expected 30): 30
+  temp credentials file removed: True

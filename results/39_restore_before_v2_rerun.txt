@@ -1,0 +1,86 @@
+# Phase 15 -- state before the restore for the v2 run -- 2026-10-21 11:20 local time
+  orders rows: 12  (expected 12) OK
+  orders max id: 77  (expected 77) OK
+  order_items rows: 23  (expected 23) OK
+  order_items max id: 44  (expected 44) OK
+  payments rows: 22  (expected 22) OK
+  payments max id: 28  (expected 28) OK
+  triggers: 8  (expected 8) OK
+  duality views: 4  (expected 4) OK
+safety dump of the current state: exit 0; stderr: mysqldump: Error: 'SELECT command denied to user 'jdv_admin'@'localhost' for table 'column_masking_policy'' when trying to dump masking policies; temp credentials file removed: True
+  file jdv_ai_billing_post_v2_run1_2026-10-21.sql: 54247 bytes; sha256 3db46950dad8a658cf50e605f36c374cd8bb796be0694932b60acca950550d77; TRIGGER lines 8; DUALITY VIEW mentions 4; last line: -- Dump completed on 2026-10-21 11:20:50
+  counts in the dump's data: order 77 present: True; 'pay-priya-1022' present: True
+
+## Phase 15 STEP 1. restore for the v2 run. BEFORE grants = top of results/31_real_restore_check.txt (from root, user-provided)
+  GRANT USAGE ON *.* TO `jdv_agent`@`%`
+  GRANT SELECT ON `jdv_ai_billing`.`catalog_dv` TO `jdv_agent`@`%`
+  GRANT SELECT ON `jdv_ai_billing`.`customer_dv` TO `jdv_agent`@`%`
+  GRANT SELECT, INSERT, UPDATE ON `jdv_ai_billing`.`order_dv` TO `jdv_agent`@`%`
+  GRANT SELECT, INSERT ON `jdv_ai_billing`.`payment_dv` TO `jdv_agent`@`%`
+
+# Phase 15 restore -- 2026-10-21 11:20 local time
+## STEP 0 (read only)
+  jdv_ai_billing_pre_live_agent_runs_2026-10-21.sql: 53016 bytes (expected 53016) -> OK
+  jdv_ai_billing_post_run4_2026-10-21.sql: 53860 bytes (expected 53860) -> OK
+  databases: ['jdv_ai_billing', 'jdv_repro_scratch']
+  jdv_restore_test gone: True; jdv_repro_scratch present: True
+  jdv_repro_scratch objects: 30
+  before: orders rows: 12
+  before: orders max id: 77
+  before: order_items rows: 23
+  before: order_items max id: 44
+  before: payments rows: 22
+  before: payments max id: 28
+  before: triggers: 8
+  before: duality views: 4
+  character set / collation: utf8mb4 utf8mb4_unicode_ci
+  step 0d: satisfied by the root-provided grants listing above
+
+## STEP 1 (restore; stops at the first error)
+  1. DROP DATABASE jdv_ai_billing: exit 0 
+  2. CREATE DATABASE jdv_ai_billing utf8mb4 / utf8mb4_unicode_ci: exit 0 
+  3. load jdv_ai_billing_pre_live_agent_runs_2026-10-21.sql (--show-warnings): exit 0
+     stdout: (nothing printed)
+     stderr: (none)
+
+## STEP 2 (read only)
+PASS  orders rows = 11 (expected 11)
+PASS  order_items rows = 21 (expected 21)
+PASS  payments rows = 21 (expected 21)
+PASS  orders max id = 72 (expected 72)
+PASS  order_items max id = 41 (expected 41)
+PASS  payments max id = 27 (expected 27)
+PASS  triggers = 8 (expected 8)
+PASS  duality views = 4 (expected 4)
++--------------------+-------------------------------------+--------------------+---------------+--------------+
+| EVENT_OBJECT_TABLE | TRIGGER_NAME                        | EVENT_MANIPULATION | ACTION_TIMING | ACTION_ORDER |
++--------------------+-------------------------------------+--------------------+---------------+--------------+
+| order_items        | trg_order_items_guard_ins           | INSERT             | BEFORE        |            1 |
+| order_items        | trg_order_items_guard_tenant_ins    | INSERT             | BEFORE        |            2 |
+| order_items        | trg_order_items_guard_upd           | UPDATE             | BEFORE        |            1 |
+| orders             | trg_orders_guards_ins               | INSERT             | BEFORE        |            1 |
+| orders             | trg_orders_guards_upd               | UPDATE             | BEFORE        |            1 |
+| orders             | trg_orders_guard_business_immutable | UPDATE             | BEFORE        |            2 |
+| payments           | trg_payments_guard_business_ins     | INSERT             | BEFORE        |            1 |
+| payments           | trg_payments_guard_immutable        | UPDATE             | BEFORE        |            1 |
++--------------------+-------------------------------------+--------------------+---------------+--------------+
+PASS  order_items BEFORE INSERT order: {'trg_order_items_guard_ins': '1', 'trg_order_items_guard_tenant_ins': '2'}
+PASS  SELECT COUNT(*) FROM catalog_dv = 10
+PASS  SELECT COUNT(*) FROM customer_dv = 5
+PASS  SELECT COUNT(*) FROM order_dv = 11
+PASS  SELECT COUNT(*) FROM payment_dv = 21
+  AUTO_INCREMENT orders: 76
+  AUTO_INCREMENT order_items: 42
+  AUTO_INCREMENT payments: 28
+
+## Agent account (connected the way agent/db.py does)
+AFTER (SHOW GRANTS FOR CURRENT_USER):
+  GRANT USAGE ON *.* TO `jdv_agent`@`%`
+  GRANT SELECT ON `jdv_ai_billing`.`catalog_dv` TO `jdv_agent`@`%`
+  GRANT SELECT ON `jdv_ai_billing`.`customer_dv` TO `jdv_agent`@`%`
+  GRANT SELECT, INSERT, UPDATE ON `jdv_ai_billing`.`order_dv` TO `jdv_agent`@`%`
+  GRANT SELECT, INSERT ON `jdv_ai_billing`.`payment_dv` TO `jdv_agent`@`%`
+PASS  AFTER equals BEFORE line by line, same order (5 vs 5 lines); as a set: True
+  SELECT 1: OK -> [(1,)]
+  SELECT COUNT(*) FROM catalog_dv: OK -> [(10,)]
+  SELECT COUNT(*) FROM orders: ERROR -> ProgrammingError: 1142 (42000): SELECT command denied to user 'jdv_agent'@'localhost' for table 'orders'
