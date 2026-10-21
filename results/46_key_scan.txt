@@ -1,0 +1,3 @@
+key-pattern scan 2026-10-21; patterns: 4 (Google-style key, sk-ant, *_API_KEY=value, password=value); output = file:line only
+agent\db.py:25
+scripts\run_sql.py:93

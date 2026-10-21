@@ -16,7 +16,7 @@ Decision: use `BIGINT UNSIGNED AUTO_INCREMENT` for every primary key,
 and lean into the AUTO_INCREMENT rule as something to document empirically
 (see `docs/findings.md` E16–E18) rather than design around. Two reasons:
 
-1. **InnoDB clustered-index behavior.** InnoDB physically orders a table's
+1. **InnoDB clustered-index behavior (not verified here: no script in this repo measures page splits, cache locality or index size; this is general background, not a finding).** InnoDB physically orders a table's
    rows by its primary key (the primary key *is* the clustered index every
    secondary index points back into). A monotonically increasing key means
    new rows always append at the end of the index — sequential, cache-warm

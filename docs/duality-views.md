@@ -1,7 +1,5 @@
 # JSON Duality Views reference
 
-_Planned._
-
 Will document each duality view (`order_dv`, `catalog_dv`, `customer_dv`):
 purpose, consumer, the annotated SQL from `sql/02_duality_views.sql`, a real
 sample document from `results/`, and the reasoning behind each annotation
@@ -19,8 +17,8 @@ What stops real changes is GUARD 5 (`trg_payments_guard_immutable` in
 `sql/01_schema.sql`), a `BEFORE UPDATE` trigger on the `payments` table that
 rejects any change to a column value. It is a table trigger, so it applies
 to **every connection by design** -- the agent writing through `order_dv`,
-and an administrator running a direct `UPDATE payments` alike (E25, E26). No
-role or code path is exempt.
+and an administrator running a direct `UPDATE payments` alike (E25, E26). It was tested for two accounts only: the agent user (E25) and
+jdv_admin (E26); no other account or code path was tested.
 
 That is the intended rule, not a side effect: a payment is a financial
 record, and it is corrected with a new `refund` payment, never edited. A

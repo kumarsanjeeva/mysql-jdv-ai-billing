@@ -281,8 +281,7 @@ CREATE TABLE payments (
 --          results/repro_payment_design_ab.sql (design B).
 --
 -- Whether these fire correctly when the write arrives through a JSON
--- Duality View (rather than a direct INSERT/UPDATE on orders) is verified,
--- not assumed -- see docs/findings.md, test E14.
+-- Duality View (rather than a direct INSERT/UPDATE on orders) is tested case by case in the edge-case scripts under sql/ (see docs/findings.md for which cases; not every guard has a negative test).
 -- ============================================================
 
 DELIMITER $$

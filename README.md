@@ -9,8 +9,9 @@ AI agents are good at reasoning over documents and bad at reasoning over
 foreign keys. Relational schemas are good at integrity and bad at handing an
 LLM a single, coherent object to read or write. MySQL's JSON Duality Views
 close that gap: the same data is simultaneously a normalized relational
-schema and a set of JSON documents, kept consistent by the database, not by
-application code. This repo builds a small, realistic bakery billing system
+schema and a set of JSON documents, backed by the same tables. Some rules
+are enforced by database triggers; docs/findings.md lists what is tested and
+what is not enforced. This repo builds a small, realistic bakery billing system
 on that idea and puts an AI agent behind it — using JDV as the *only*
 interface the agent is allowed to use, so the views double as the agent's
 permission boundary as well as its data shape.
@@ -19,7 +20,9 @@ permission boundary as well as its data shape.
 
 See [`docs/architecture.md`](docs/architecture.md) for the full set of
 diagrams (component overview, write path, concurrency, trust boundaries, read
-path). Summary: a Claude-based agent calls a small set of Python tools, which
+path). Summary: an LLM agent (the live runs captured in results/ used
+Gemini models; no live Claude run is captured) calls a small set of Python
+tools, which
 talk to MySQL exclusively as a least-privilege user with grants on the
 duality views only — never on the base tables. Counter staff / POS and
 reporting queries continue to use the base tables directly, as before.
@@ -52,7 +55,7 @@ _(Planned: populated from real, captured test runs — see
 sql/            DDL, duality views, and DML demo/edge-case scripts (numbered, run in order)
 scripts/        run_sql.py (execute a .sql file, capture output), reset_db.py
 agent/          Python billing agent: db.py, tools.py, agent.py, scenarios.py
-results/        captured real command output — the evidence behind every claim in docs/
+results/        captured real command output — the captured output that the claims in docs/ cite by file name
 docs/           architecture, schema, duality-view reference, findings, guidance
 ```
 
@@ -72,8 +75,9 @@ _(Planned: a real document from `results/`.)_
 ## When to use / not use JDV
 
 Short version: JDV shines when an AI agent (or any client) needs a single,
-consistent read/write document backed by normalized tables with real
-integrity guarantees. It's a worse fit for bulk loads, set-based updates, and
+consistent read/write document backed by normalized tables with database-side
+guard triggers for some rules (docs/findings.md lists what is tested and what
+is not enforced). It's a worse fit for bulk loads, set-based updates, and
 ad hoc reporting, where plain SQL against the base tables remains the right
 tool. See [`docs/when-to-use.md`](docs/when-to-use.md) for the full,
 findings-based guidance.
@@ -82,19 +86,21 @@ findings-based guidance.
 
 - MySQL 9.7+ (JSON Duality Views support)
 - Python 3.11+
-- An Anthropic API key — optional; only needed for `agent.agent`, not for
-  `agent.scenarios` or the SQL demos
+- An LLM API key, only for `agent.agent` and the live runs (not for
+  `agent.scenarios` or the SQL demos). Set `AGENT_PROVIDER`, `AGENT_MODEL`
+  and `AGENT_PROMPT_VERSION`, and the provider's key in `.env`:
+  `GEMINI_API_KEY` for `gemini` (the provider used in the captured live runs)
 
 ## Documentation index
 
-- [`docs/architecture.md`](docs/architecture.md) — diagrams
-- [`docs/schema.md`](docs/schema.md) — ER diagram + table reference
+- [`docs/architecture.md`](docs/architecture.md) — diagrams (planned; stub only)
+- [`docs/schema.md`](docs/schema.md) — ER diagram + table reference (planned; stub only)
 - [`docs/duality-views.md`](docs/duality-views.md) — each view, annotated
 - [`docs/findings.md`](docs/findings.md) — every test, expected vs. actual
 - [`docs/when-to-use.md`](docs/when-to-use.md) — JDV vs. alternatives
 - [`docs/porting-notes.md`](docs/porting-notes.md) — PostgreSQL -> MySQL decisions
-- [`docs/setup.md`](docs/setup.md) — full setup, Windows + Linux
-- [`docs/blog-outline.md`](docs/blog-outline.md) — blog section plan
+- [`docs/setup.md`](docs/setup.md) — full setup, Windows + Linux (planned; stub only)
+- [`docs/blog-outline.md`](docs/blog-outline.md) — blog section plan (planned; stub only)
 
 ## References
 

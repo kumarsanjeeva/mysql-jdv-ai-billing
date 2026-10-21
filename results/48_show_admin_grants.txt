@@ -1,0 +1,17 @@
+-- run_sql.py -- 2026-10-21 14:15:04 UTC
+-- file: sql\48_show_admin_grants.sql
+-- connecting user: jdv_admin
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
++-----------------------------------------------------------------------------------------+
+| Grants for jdv_admin@localhost                                                          |
++-----------------------------------------------------------------------------------------+
+| GRANT CREATE USER ON *.* TO `jdv_admin`@`localhost`                                     |
+| GRANT ALL PRIVILEGES ON `jdv_ai_billing`.* TO `jdv_admin`@`localhost` WITH GRANT OPTION |
+| GRANT ALL PRIVILEGES ON `jdv_repro_scratch`.* TO `jdv_admin`@`localhost`                |
++-----------------------------------------------------------------------------------------+
++---------------------+
+| connected_as        |
++---------------------+
+| jdv_admin@localhost |
++---------------------+

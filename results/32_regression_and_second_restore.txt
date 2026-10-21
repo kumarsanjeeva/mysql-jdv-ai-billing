@@ -1,0 +1,190 @@
+# Phase 12 regression run -- 2026-10-21 03:48 local time
+## STEP 0c. database before starting
+orders	11	72
+order_items	21	41
+payments	21	27
+  OK: 11 / 21 / 21, max ids 72 / 41 / 27
+
+## STEP 1a. backup of tracked results files (reference-local is git-ignored: see git check-ignore in the transcript)
+  04_edge_cases.txt: sha256 97b01a9446cd1ad6763f7f0f4c9757741f321deb5bf1245dceab68bcd1bc4155
+  05_scenario.txt: sha256 88764c37334eed4fbd2928f57f9fd962d6bf648e5636d6d4935b922c9a8f968f
+  07_e28_item_price_guard.txt: sha256 a74371dde2de9d0d0918e8ba19c1a8315b4882b6f8696914aeff9588b14447e6
+  08_e29_payment_business_guard.txt: sha256 468b92e76751e8ba866a31c2a5a750fc31e53197b5b9c35cbad3296acefa9e28
+  11_e30_guard_8.txt: sha256 f10b0f188535edfba0e7f9ee3aaa3311412035ddd43e5a672019dc0f6908be8b
+
+## STEP 1b. 04_edge_cases.sql
+  run_sql.py exit code: 0
+  new output moved to results\post_restore_04_edge_cases.txt; original restored: sha256 match = True
+  --- run_sql.py stdout ---
+ID             DESCRIPTION                                                                       EXPECT      ACTUAL      VERDICT
+E01            stale etag: second UPDATE reuses the etag the first one replaced                  ERROR 6494  ERROR 6494  PASS
+E02            omitted item: write the order back without one of its two items                   ERROR 6498  ERROR 6498  PASS
+E03            omitted payment: write the order back without one of its payments                 ERROR 6498  ERROR 6498  PASS
+E04            agent changes a product price through catalog_dv (SELECT-only grant)              ERROR 1142  ERROR 1142  PASS
+E04b           admin changes a product price through catalog_dv (view has no UPDATE annotation)  ERROR 6497  ERROR 6497  PASS
+E05            primary key change: document written back with a different _id                    ERROR 6496  ERROR 6496  PASS
+E06            multi-document UPDATE: one statement sets the status of every business-1 order    ERROR       ERROR 6482  PASS
+E07            INSERT ... SELECT into order_dv (a valid new document, supplied by a SELECT)      ERROR       ERROR 6482  PASS
+E08            INSERT ... ON DUPLICATE KEY UPDATE on order_dv (existing document as an upsert)   ERROR       ERROR 6482  PASS
+E09            EXPLAIN SELECT on order_dv as admin                                               OK          OK          PASS
+E09b           EXPLAIN SELECT on order_dv as the agent (no grants on the underlying tables)      ERROR 1345  ERROR 1345  PASS
+E09c           EXPLAIN UPDATE on order_dv as admin                                               ERROR       ERROR 6482  PASS
+E10            new order referencing a product id that does not exist                            ERROR 6491  ERROR 6491  PASS
+E11            cross-tenant reference: business-1 order for a business-2 customer (GUARD 4)      ERROR 1644  ERROR 1644  PASS
+E12            agent (grants on views only) inserts and updates an order through order_dv        OK          OK          PASS
+E13            agent SELECTs a base table directly                                               ERROR 1142  ERROR 1142  PASS
+E15            second order with an already-used request_id                                      ERROR 1062  ERROR 1062  PASS
+E16            new payment without an id next to existing payments (generated/explicit mix)      ERROR 6560  ERROR 6560  PASS
+E17            new payment with an explicit id given as a value (@next_id)                       OK          OK          PASS
+E18            new payment with an explicit id from a subquery inside the UPDATE (E24)           ERROR 6560  ERROR 6560  PASS
+REFUND1        agent inserts a -500.00 refund for seed-order-002 through payment_dv              OK          OK          PASS
+REFUND2        refund with a positive amount (CHECK chk_payments_amount_sign)                    ERROR 3819  ERROR 3819  PASS
+E25            agent changes a payment amount through order_dv                                   ERROR 1644  ERROR 1644  PASS
+E26            admin changes a payment amount with a direct UPDATE on payments                   ERROR 1644  ERROR 1644  PASS
+E25_E26_CHECK  payment amount is still 500.00 after E25 and E26                                  OK          OK          PASS
+
+## STEP 1b. 05_scenario.sql
+  run_sql.py exit code: 0
+  new output moved to results\post_restore_05_scenario.txt; original restored: sha256 match = True
+  --- run_sql.py stdout ---
+ID    DESCRIPTION                                                                                      EXPECT      ACTUAL      VERDICT
+S1    agent looks up the customer and the two products                                                 OK          OK          PASS
+S2    agent creates the order (draft) with the Rs 500 advance, priced from the catalog                 OK          OK          PASS
+S3    counter staff confirm the order while the agent holds an older copy; the agent's write is stale  ERROR 6494  ERROR 6494  PASS
+S4    agent retries with a fresh read: its change is applied, the staff confirmation is kept           OK          OK          PASS
+S5    agent pays the balance through payment_dv; the balance is computed in SQL                        OK          OK          PASS
+S6    the final order document next to its relational rows (admin: the agent cannot read tables, E13)  OK          OK          PASS
+
+## STEP 1b. 07_e28_item_price_guard.sql
+  run_sql.py exit code: 0
+  new output moved to results\post_restore_07_e28_item_price_guard.txt; original restored: sha256 match = True
+  --- run_sql.py stdout ---
+ID      DESCRIPTION                                                                                       EXPECT      ACTUAL      VERDICT
+E28a    item inserted at the catalog variant price (900.00)                                               OK          OK          PASS
+E28a2   same item with the price sent as the JSON integer 900 (no decimals)                               OK          OK          PASS
+E28a3   product-only item (no variant) inserted at the product price (90.00)                              OK          OK          PASS
+E28b    item with a variant inserted at the wrong price (100.00 instead of 900.00)                        ERROR       ERROR 1644  PASS
+E28b2   product-only item inserted at the wrong price (80.00 instead of 90.00)                            ERROR       ERROR 1644  PASS
+E28b3   item with neither a product nor a variant (nothing to check the price against)                    ERROR       ERROR 1644  PASS
+E28b4   variant of another product (Vanilla variant 5, 750.00) attached to Black Forest Cake (product 1)  ERROR       ERROR 1644  PASS
+E28c    existing item's price changed through order_dv (900.00 -> 1.00)                                   ERROR       ERROR 1644  PASS
+E28c2   existing item's variant changed through order_dv (variant 2 -> variant 3)                         ERROR       ERROR 1644  PASS
+E28c3   existing item's product changed through order_dv (product 1 -> product 2)                         ERROR       ERROR 1644  PASS
+E28c4   a harmless change to the same item (its notes) is still allowed                                   OK          OK          PASS
+E28d1   admin raises the catalog price of variant 2 from 900.00 to 950.00 (committed)                     OK          OK          PASS
+E28d2   agent: the old item is unchanged and the order still reads and writes back through order_dv       OK          OK          PASS
+E28d2b  agent: a NEW item at the old price 900.00 is now rejected (catalog says 950.00)                   ERROR       ERROR 1644  PASS
+E28d2c  agent: a NEW item at the new price 950.00 is accepted                                             OK          OK          PASS
+E28d3   admin restores the catalog price of variant 2 to the recorded 900.00                              OK          OK          PASS
+E28d4   assertion: the catalog price of variant 2 is back to the recorded 900.00                          OK          OK          PASS
+
+## STEP 1b. 08_e29_payment_business_guard.sql
+  run_sql.py exit code: 0
+  new output moved to results\post_restore_08_e29_payment_business_guard.txt; original restored: sha256 match = True
+  --- run_sql.py stdout ---
+ID    DESCRIPTION                                                                                                  EXPECT      ACTUAL      VERDICT
+E29a  payment through payment_dv with the order's own business_id (1)                                              OK          OK          PASS
+E29b  payment through payment_dv with a different business_id (2) than its order (1)                               ERROR       ERROR 1644  PASS
+E29c  new order created through order_dv with a nested payment whose business_id (2) differs from the order's (1)  ERROR       ERROR 1644  PASS
+
+## STEP 1b. 11_e30_guard_8.sql
+  run_sql.py exit code: 0
+  new output moved to results\post_restore_11_e30_guard_8.txt; original restored: sha256 match = True
+  --- run_sql.py stdout ---
+ID                  DESCRIPTION                                                                                                                                    EXPECT      ACTUAL      VERDICT
+E30a                business-1 order with business-1 product 1 and its variant 2 at 900.00                                                                         OK          OK          PASS
+E30a2               business-2 order (outlet 3, customer 4) with business-2 product 7 and its variant 9 at 1000.00                                                 OK          OK          PASS
+E30b                business-1 order with business-2 product 7 (Rainbow Cake) at its own catalog price                                                             ERROR       ERROR 1644  PASS
+E30c                business-1 order with a business-2 variant only (variant 9, Rainbow 1 kg) at its own price                                                     ERROR       ERROR 1644  PASS
+E30d                business-1 order with business-2 product 7 AND its variant 9 (consistent with each other, wrong business)                                      ERROR       ERROR 1644  PASS
+E30e                business-2 order (outlet 3, customer 4) with business-1 product 1 (Black Forest Cake) at its own price                                         ERROR       ERROR 1644  PASS
+E30f                wrong tenant AND wrong price (business-2 product 7 at 100.00 in a business-1 order): which guard reports?                                      ERROR       ERROR 1644  PASS
+E31a                change only business_id (1 -> 2); customer and outlet still belong to business 1                                                               ERROR 1644  ERROR 1644  PASS
+E31b                change business_id (1 -> 2) together with customer (-> 4) and outlet (-> 3), both business 2                                                   ERROR 1644  ERROR 1644  PASS
+E31c                admin changes business_id, customer_id and outlet_id together with a direct UPDATE on orders                                                   ERROR 1644  ERROR 1644  PASS
+E31d                an ordinary change to the same order (its status) is still allowed                                                                             OK          OK          PASS
+E32                 append an existing item of order seed-order-002 (business 1) to seed-order-005 (business 2), keeping its id (duplicate-id insert, not a move)  ERROR 1062  ERROR 1644  SURPRISE
+E30_ROLLBACK_CHECK  seed-order-001/002/005 unchanged and no e30 test orders left                                                                                   OK          OK          PASS
+
+1 SURPRISE(S) -- see results/11_e30_guard_8.txt, review before writing docs/findings.md
+
+## after the five runs: counts
+orders	12	79
+order_items	23	44
+payments	23	31
+
+## STEP 3. second restore. BEFORE grants = top of results/31_real_restore_check.txt (from root, user-provided)
+  GRANT USAGE ON *.* TO `jdv_agent`@`%`
+  GRANT SELECT ON `jdv_ai_billing`.`catalog_dv` TO `jdv_agent`@`%`
+  GRANT SELECT ON `jdv_ai_billing`.`customer_dv` TO `jdv_agent`@`%`
+  GRANT SELECT, INSERT, UPDATE ON `jdv_ai_billing`.`order_dv` TO `jdv_agent`@`%`
+  GRANT SELECT, INSERT ON `jdv_ai_billing`.`payment_dv` TO `jdv_agent`@`%`
+
+# Phase 11 real restore -- 2026-10-21 03:49 local time
+## STEP 0 (read only)
+  jdv_ai_billing_pre_live_agent_runs_2026-10-21.sql: 53016 bytes (expected 53016) -> OK
+  jdv_ai_billing_post_run4_2026-10-21.sql: 53860 bytes (expected 53860) -> OK
+  databases: ['jdv_ai_billing', 'jdv_repro_scratch']
+  jdv_restore_test gone: True; jdv_repro_scratch present: True
+  jdv_repro_scratch objects: 30
+  before: orders rows: 12
+  before: orders max id: 79
+  before: order_items rows: 23
+  before: order_items max id: 44
+  before: payments rows: 23
+  before: payments max id: 31
+  before: triggers: 8
+  before: duality views: 4
+  character set / collation: utf8mb4 utf8mb4_unicode_ci
+  step 0d: satisfied by the root-provided grants listing above
+
+## STEP 1 (restore; stops at the first error)
+  1. DROP DATABASE jdv_ai_billing: exit 0 
+  2. CREATE DATABASE jdv_ai_billing utf8mb4 / utf8mb4_unicode_ci: exit 0 
+  3. load jdv_ai_billing_pre_live_agent_runs_2026-10-21.sql (--show-warnings): exit 0
+     stdout: (nothing printed)
+     stderr: (none)
+
+## STEP 2 (read only)
+PASS  orders rows = 11 (expected 11)
+PASS  order_items rows = 21 (expected 21)
+PASS  payments rows = 21 (expected 21)
+PASS  orders max id = 72 (expected 72)
+PASS  order_items max id = 41 (expected 41)
+PASS  payments max id = 27 (expected 27)
+PASS  triggers = 8 (expected 8)
+PASS  duality views = 4 (expected 4)
++--------------------+-------------------------------------+--------------------+---------------+--------------+
+| EVENT_OBJECT_TABLE | TRIGGER_NAME                        | EVENT_MANIPULATION | ACTION_TIMING | ACTION_ORDER |
++--------------------+-------------------------------------+--------------------+---------------+--------------+
+| order_items        | trg_order_items_guard_ins           | INSERT             | BEFORE        |            1 |
+| order_items        | trg_order_items_guard_tenant_ins    | INSERT             | BEFORE        |            2 |
+| order_items        | trg_order_items_guard_upd           | UPDATE             | BEFORE        |            1 |
+| orders             | trg_orders_guards_ins               | INSERT             | BEFORE        |            1 |
+| orders             | trg_orders_guards_upd               | UPDATE             | BEFORE        |            1 |
+| orders             | trg_orders_guard_business_immutable | UPDATE             | BEFORE        |            2 |
+| payments           | trg_payments_guard_business_ins     | INSERT             | BEFORE        |            1 |
+| payments           | trg_payments_guard_immutable        | UPDATE             | BEFORE        |            1 |
++--------------------+-------------------------------------+--------------------+---------------+--------------+
+PASS  order_items BEFORE INSERT order: {'trg_order_items_guard_ins': '1', 'trg_order_items_guard_tenant_ins': '2'}
+PASS  SELECT COUNT(*) FROM catalog_dv = 10
+PASS  SELECT COUNT(*) FROM customer_dv = 5
+PASS  SELECT COUNT(*) FROM order_dv = 11
+PASS  SELECT COUNT(*) FROM payment_dv = 21
+  AUTO_INCREMENT orders: 76
+  AUTO_INCREMENT order_items: 42
+  AUTO_INCREMENT payments: 28
+
+## Agent account (connected the way agent/db.py does)
+AFTER (SHOW GRANTS FOR CURRENT_USER):
+  GRANT USAGE ON *.* TO `jdv_agent`@`%`
+  GRANT SELECT ON `jdv_ai_billing`.`catalog_dv` TO `jdv_agent`@`%`
+  GRANT SELECT ON `jdv_ai_billing`.`customer_dv` TO `jdv_agent`@`%`
+  GRANT SELECT, INSERT, UPDATE ON `jdv_ai_billing`.`order_dv` TO `jdv_agent`@`%`
+  GRANT SELECT, INSERT ON `jdv_ai_billing`.`payment_dv` TO `jdv_agent`@`%`
+PASS  AFTER equals BEFORE line by line, same order (5 vs 5 lines); as a set: True
+  SELECT 1: OK -> [(1,)]
+  SELECT COUNT(*) FROM catalog_dv: OK -> [(10,)]
+  SELECT COUNT(*) FROM orders: ERROR -> ProgrammingError: 1142 (42000): SELECT command denied to user 'jdv_agent'@'localhost' for table 'orders'
+
+Errata: the second restore section is headed 'Phase 11 real restore' but it is the Phase 12 restore.

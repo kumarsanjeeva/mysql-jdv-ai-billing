@@ -1,7 +1,5 @@
 # When to use JSON Duality Views
 
-_Planned, from `docs/findings.md`._
-
 Will cover: JDV vs. JSON columns vs. hand-built `JSON_OBJECT`/`JSON_ARRAYAGG`
 vs. an ORM (comparison table across integrity, write path, concurrency,
 flexibility, portability); use-when / avoid-when guidance (bulk loads,
@@ -41,8 +39,10 @@ each found by testing rather than assumed:
   file), because #7 and #8 only check inserts.
 
 - **order_id lock (guard #6):** an item's `order_id` cannot change. An admin could
-  move a business-1 item into a business-2 order (E33, `results/12_*.txt`); now`n  rejected (`results/13_*.txt`). The gap is closed.
+  move a business-1 item into a business-2 order (E33, `results/12_*.txt`);
+  now rejected (`results/13_*.txt`). The gap is closed.
 
-Still open: an administrator can change `products.business_id` directly (no
-view allows it), which would leave existing items pointing at another business.
+Still open (not blocked, untested): an administrator could change
+`products.business_id` directly on the base table; no script has run that
+update. It would leave existing items pointing at another business.
 Reads are covered by the section above.

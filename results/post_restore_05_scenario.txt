@@ -1,0 +1,403 @@
+-- run_sql.py -- 2026-10-20 22:19:01 UTC
+-- file: sql\05_scenario.sql
+-- connecting user: per test, see below
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
+ID    DESCRIPTION                                                                                      EXPECT      ACTUAL      VERDICT
+S1    agent looks up the customer and the two products                                                 OK          OK          PASS
+S2    agent creates the order (draft) with the Rs 500 advance, priced from the catalog                 OK          OK          PASS
+S3    counter staff confirm the order while the agent holds an older copy; the agent's write is stale  ERROR 6494  ERROR 6494  PASS
+S4    agent retries with a fresh read: its change is applied, the staff confirmation is kept           OK          OK          PASS
+S5    agent pays the balance through payment_dv; the balance is computed in SQL                        OK          OK          PASS
+S6    the final order document next to its relational rows (admin: the agent cannot read tables, E13)  OK          OK          PASS
+
+
+--- S1: agent looks up the customer and the two products (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SELECT JSON_VALUE(data, '$._id') AS customer_id, JSON_VALUE(data, '$.name') AS name, JSON_VALUE(data, '$.phone') AS phone
+  FROM customer_dv WHERE JSON_VALUE(data, '$.business_id') = 1 AND JSON_VALUE(data, '$.phone') = '9900000001';
+SELECT JSON_VALUE(c.data, '$.name') AS product, v.variant_id, v.flavor, v.size, v.unit,
+       COALESCE(v.price, JSON_VALUE(c.data, '$.price' RETURNING DECIMAL(10,2))) AS price,
+       JSON_VALUE(c.data, '$.gst_rate') AS gst_rate, JSON_VALUE(c.data, '$.is_gst_inclusive') AS gst_inclusive
+  FROM catalog_dv c
+  LEFT JOIN JSON_TABLE(c.data, '$.variants[*]' COLUMNS (
+        variant_id BIGINT PATH '$.id', flavor VARCHAR(50) PATH '$.flavor',
+        size DECIMAL(6,2) PATH '$.size', unit VARCHAR(5) PATH '$.unit', price DECIMAL(10,2) PATH '$.price')) v
+    ON v.size = 1.00
+ WHERE JSON_VALUE(c.data, '$.business_id') = 1
+   AND JSON_VALUE(c.data, '$.name') IN ('Black Forest Cake', 'Chocolate Truffle Pastry');
+STDOUT:
++-------------+--------------+------------+
+| customer_id | name         | phone      |
++-------------+--------------+------------+
+| 1           | Priya Sharma | 9900000001 |
++-------------+--------------+------------+
++--------------------------+------------+-----------+------+------+--------+----------+---------------+
+| product                  | variant_id | flavor    | size | unit | price  | gst_rate | gst_inclusive |
++--------------------------+------------+-----------+------+------+--------+----------+---------------+
+| Black Forest Cake        |          2 | Chocolate | 1.00 | kg   | 900.00 | 5.00     | 0             |
+| Chocolate Truffle Pastry |       NULL | NULL      | NULL | NULL |  90.00 | 5.00     | 0             |
++--------------------------+------------+-----------+------+------+--------+----------+---------------+
+STDERR:
+
+
+--- S2: agent creates the order (draft) with the Rs 500 advance, priced from the catalog (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SET @customer_id = (SELECT JSON_VALUE(data, '$._id') FROM customer_dv
+                     WHERE JSON_VALUE(data, '$.business_id') = 1 AND JSON_VALUE(data, '$.phone') = '9900000001');
+SET @cake = (SELECT data FROM catalog_dv WHERE JSON_VALUE(data, '$.business_id') = 1 AND JSON_VALUE(data, '$.name') = 'Black Forest Cake');
+SET @pastry = (SELECT data FROM catalog_dv WHERE JSON_VALUE(data, '$.business_id') = 1 AND JSON_VALUE(data, '$.name') = 'Chocolate Truffle Pastry');
+SELECT v.id, v.flavor, v.size, v.unit, v.price INTO @cake_variant_id, @cake_flavor, @cake_size, @cake_unit, @cake_price
+  FROM JSON_TABLE(@cake, '$.variants[*]' COLUMNS (
+        id BIGINT PATH '$.id', flavor VARCHAR(50) PATH '$.flavor', size DECIMAL(6,2) PATH '$.size',
+        unit VARCHAR(5) PATH '$.unit', price DECIMAL(10,2) PATH '$.price')) v
+ WHERE v.size = 1.00;
+SET @cake_rate    = JSON_VALUE(@cake, '$.gst_rate' RETURNING DECIMAL(5,2));
+SET @pastry_price = JSON_VALUE(@pastry, '$.price' RETURNING DECIMAL(10,2));
+SET @pastry_rate  = JSON_VALUE(@pastry, '$.gst_rate' RETURNING DECIMAL(5,2));
+SET @pastry_qty   = 6;
+-- Both products are GST-exclusive (is_gst_inclusive = 0, shown in S1): GST is added on top.
+SET @cake_gst   = ROUND(@cake_price * 1 * @cake_rate / 100, 2);
+SET @pastry_gst = ROUND(@pastry_price * @pastry_qty * @pastry_rate / 100, 2);
+SET @subtotal   = @cake_price * 1 + @pastry_price * @pastry_qty;
+SET @gst_total  = @cake_gst + @pastry_gst;
+SET @order_request_id = CONCAT('order-', UUID());
+SET @advance_request_id = CONCAT('payment-', UUID());
+SET @new_order = JSON_OBJECT(
+    'business_id', 1,
+    'request_id', @order_request_id,
+    'order_status', 'draft',
+    'delivery_at', '2026-10-03 10:00:00.000000',
+    'subtotal', @subtotal, 'discount_type', 'amount', 'discount_value', 0.00,
+    'gst_value', @gst_total, 'total', @subtotal + @gst_total,
+    'outlet', JSON_OBJECT('id', 1),
+    'customer', JSON_OBJECT('id', CAST(@customer_id AS UNSIGNED)),
+    'items', JSON_ARRAY(
+        JSON_OBJECT('name', JSON_VALUE(@cake, '$.name'), 'flavor', @cake_flavor, 'size', @cake_size, 'unit', @cake_unit,
+                    'qty', 1, 'price', @cake_price, 'gst_rate', @cake_rate, 'is_gst_inclusive', 0,
+                    'gst_applicable', 1, 'discount_exempt', 0, 'gst_value', @cake_gst, 'discount_value', 0.00,
+                    'product', JSON_OBJECT('id', JSON_VALUE(@cake, '$._id' RETURNING UNSIGNED)),
+                    'product_variant_id', @cake_variant_id),
+        JSON_OBJECT('name', JSON_VALUE(@pastry, '$.name'),
+                    'qty', @pastry_qty, 'price', @pastry_price, 'gst_rate', @pastry_rate, 'is_gst_inclusive', 0,
+                    'gst_applicable', 1, 'discount_exempt', 0, 'gst_value', @pastry_gst, 'discount_value', 0.00,
+                    'product', JSON_OBJECT('id', JSON_VALUE(@pastry, '$._id' RETURNING UNSIGNED)))),
+    'payments', JSON_ARRAY(
+        JSON_OBJECT('business_id', 1, 'request_id', @advance_request_id,
+                    'payment_type', 'advance', 'method', 'upi', 'amount', 500.00)));
+INSERT INTO order_dv VALUES (@new_order);
+SELECT JSON_PRETTY(data) AS created_order FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = @order_request_id;
+STDOUT:
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| created_order                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {
+  "_id": 79,
+  "items": [
+    {
+      "id": 43,
+      "qty": 1.00,
+      "name": "Black Forest Cake",
+      "size": 1.00,
+      "unit": "kg",
+      "notes": null,
+      "price": 900.00,
+      "flavor": "Chocolate",
+      "product": {
+        "id": 1,
+        "name": "Black Forest Cake"
+      },
+      "gst_rate": 5.00,
+      "gst_value": 45.00,
+      "discount_value": 0.00,
+      "gst_applicable": 1,
+      "discount_exempt": 0,
+      "is_gst_inclusive": 0,
+      "product_variant_id": 2
+    },
+    {
+      "id": 44,
+      "qty": 6.00,
+      "name": "Chocolate Truffle Pastry",
+      "size": null,
+      "unit": null,
+      "notes": null,
+      "price": 90.00,
+      "flavor": null,
+      "product": {
+        "id": 3,
+        "name": "Chocolate Truffle Pastry"
+      },
+      "gst_rate": 5.00,
+      "gst_value": 27.00,
+      "discount_value": 0.00,
+      "gst_applicable": 1,
+      "discount_exempt": 0,
+      "is_gst_inclusive": 0,
+      "product_variant_id": null
+    }
+  ],
+  "total": 1512.00,
+  "outlet": {
+    "id": 1,
+    "name": "Sunrise Bakers - MG Road"
+  },
+  "customer": {
+    "id": 1,
+    "name": "Priya Sharma",
+    "phone": "9900000001"
+  },
+  "payments": [
+    {
+      "id": 30,
+      "amount": 500.00,
+      "method": "upi",
+      "paid_at": "2026-10-21 03:49:01.040678",
+      "request_id": "payment-40608343-ccd4-11f1-aac1-dee7e8d77ce7",
+      "business_id": 1,
+      "payment_type": "advance"
+    }
+  ],
+  "subtotal": 1440.00,
+  "_metadata": {
+    "etag": "a95d015bb3243a9cf0a546bab1c74391"
+  },
+  "gst_value": 72.00,
+  "created_at": "2026-10-21 03:49:01.040678",
+  "request_id": "order-4060627d-ccd4-11f1-aac1-dee7e8d77ce7",
+  "business_id": 1,
+  "delivery_at": "2026-10-03 10:00:00.000000",
+  "order_status": "draft",
+  "discount_type": "amount",
+  "discount_value": 0.00,
+  "delivery_address": null,
+  "cancellation_reason": null
+} |
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+STDERR:
+
+
+--- S3: counter staff confirm the order while the agent holds an older copy; the agent's write is stale (as jdv_agent) ---
+EXPECT: ERROR 6494  ACTUAL: ERROR 6494  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+-- SELECT ... INTO, not SET @x = (SELECT ...): the SET form fails here (E27).
+SELECT MAX(o.id) INTO @order_id FROM customer_dv c, JSON_TABLE(c.data, '$.orders[*]' COLUMNS (id BIGINT PATH '$.id')) o
+ WHERE JSON_VALUE(c.data, '$.phone') = '9900000001';
+-- The agent reads the order, intending to add the delivery address.
+SET @agent_copy = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$._id') = @order_id AND JSON_VALUE(data, '$.business_id') = 1);
+SELECT JSON_VALUE(@agent_copy, '$.order_status') AS agent_sees_status, JSON_VALUE(@agent_copy, '$._metadata.etag') AS agent_etag;
+-- Meanwhile counter staff read the same order and confirm it (a separate client; simulated in this session).
+SET @staff_copy = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$._id') = @order_id AND JSON_VALUE(data, '$.business_id') = 1);
+UPDATE order_dv SET data = JSON_SET(@staff_copy, '$.order_status', 'confirmed')
+ WHERE JSON_VALUE(data, '$._id') = @order_id AND JSON_VALUE(data, '$.business_id') = 1;
+SELECT JSON_VALUE(data, '$.order_status') AS status_after_staff, JSON_VALUE(data, '$._metadata.etag') AS etag_after_staff
+  FROM order_dv WHERE JSON_VALUE(data, '$._id') = @order_id;
+-- The agent now writes its older copy. Its etag no longer matches: MySQL refuses.
+UPDATE order_dv SET data = JSON_SET(@agent_copy, '$.delivery_address', '221 Brigade Road, Bengaluru')
+ WHERE JSON_VALUE(data, '$._id') = @order_id AND JSON_VALUE(data, '$.business_id') = 1;
+STDOUT:
++-------------------+----------------------------------+
+| agent_sees_status | agent_etag                       |
++-------------------+----------------------------------+
+| draft             | a95d015bb3243a9cf0a546bab1c74391 |
++-------------------+----------------------------------+
++--------------------+----------------------------------+
+| status_after_staff | etag_after_staff                 |
++--------------------+----------------------------------+
+| confirmed          | 7fccfc9a55ec89991f3bdbae7e24fff6 |
++--------------------+----------------------------------+
+STDERR:
+ERROR 6494 (HY000) at line 15: Cannot update JSON duality view. The ETAG of the document in the database did not match the ETAG '"a95d015bb3243a9cf0a546bab1c74391"' passed in.
+
+
+--- S4: agent retries with a fresh read: its change is applied, the staff confirmation is kept (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+-- SELECT ... INTO, not SET @x = (SELECT ...): the SET form fails here (E27).
+SELECT MAX(o.id) INTO @order_id FROM customer_dv c, JSON_TABLE(c.data, '$.orders[*]' COLUMNS (id BIGINT PATH '$.id')) o
+ WHERE JSON_VALUE(c.data, '$.phone') = '9900000001';
+SET @fresh = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$._id') = @order_id AND JSON_VALUE(data, '$.business_id') = 1);
+SELECT JSON_VALUE(@fresh, '$.order_status') AS fresh_status, JSON_VALUE(@fresh, '$._metadata.etag') AS fresh_etag;
+UPDATE order_dv SET data = JSON_SET(@fresh, '$.delivery_address', '221 Brigade Road, Bengaluru')
+ WHERE JSON_VALUE(data, '$._id') = @order_id AND JSON_VALUE(data, '$.business_id') = 1;
+SELECT JSON_VALUE(data, '$.order_status') AS status, JSON_VALUE(data, '$.delivery_address') AS delivery_address
+  FROM order_dv WHERE JSON_VALUE(data, '$._id') = @order_id;
+STDOUT:
++--------------+----------------------------------+
+| fresh_status | fresh_etag                       |
++--------------+----------------------------------+
+| confirmed    | 7fccfc9a55ec89991f3bdbae7e24fff6 |
++--------------+----------------------------------+
++-----------+-----------------------------+
+| status    | delivery_address            |
++-----------+-----------------------------+
+| confirmed | 221 Brigade Road, Bengaluru |
++-----------+-----------------------------+
+STDERR:
+
+
+--- S5: agent pays the balance through payment_dv; the balance is computed in SQL (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+-- SELECT ... INTO, not SET @x = (SELECT ...): the SET form fails here (E27).
+SELECT MAX(o.id) INTO @order_id FROM customer_dv c, JSON_TABLE(c.data, '$.orders[*]' COLUMNS (id BIGINT PATH '$.id')) o
+ WHERE JSON_VALUE(c.data, '$.phone') = '9900000001';
+SELECT JSON_VALUE(d.data, '$.total' RETURNING DECIMAL(10,2)) - COALESCE(SUM(p.amount), 0) INTO @balance
+  FROM order_dv d
+  LEFT JOIN JSON_TABLE(d.data, '$.payments[*]' COLUMNS (amount DECIMAL(10,2) PATH '$.amount')) p ON TRUE
+ WHERE JSON_VALUE(d.data, '$._id') = @order_id AND JSON_VALUE(d.data, '$.business_id') = 1
+ GROUP BY d.data;
+SELECT @balance AS balance_due_before;
+INSERT INTO payment_dv VALUES (JSON_OBJECT(
+    'business_id', 1, 'request_id', CONCAT('payment-', UUID()),
+    'payment_type', 'final', 'method', 'cash', 'amount', @balance,
+    'order', JSON_OBJECT('id', @order_id)));
+SELECT JSON_VALUE(d.data, '$.total' RETURNING DECIMAL(10,2)) - COALESCE(SUM(p.amount), 0) AS balance_due_after
+  FROM order_dv d
+  LEFT JOIN JSON_TABLE(d.data, '$.payments[*]' COLUMNS (amount DECIMAL(10,2) PATH '$.amount')) p ON TRUE
+ WHERE JSON_VALUE(d.data, '$._id') = @order_id
+ GROUP BY d.data;
+STDOUT:
++--------------------+
+| balance_due_before |
++--------------------+
+|            1012.00 |
++--------------------+
++-------------------+
+| balance_due_after |
++-------------------+
+|              0.00 |
++-------------------+
+STDERR:
+
+
+--- S6: the final order document next to its relational rows (admin: the agent cannot read tables, E13) (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SET @order_id = (SELECT MAX(id) FROM orders WHERE customer_id = 1);
+SELECT JSON_PRETTY(data) AS order_document FROM order_dv WHERE JSON_VALUE(data, '$._id') = @order_id;
+SELECT id, request_id, order_status, delivery_address, subtotal, gst_value, total FROM orders WHERE id = @order_id;
+SELECT id, name, product_id, product_variant_id, qty, price, gst_rate, gst_value FROM order_items WHERE order_id = @order_id ORDER BY id;
+SELECT id, request_id, payment_type, method, amount, paid_at FROM payments WHERE order_id = @order_id ORDER BY id;
+STDOUT:
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| order_document                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| {
+  "_id": 79,
+  "items": [
+    {
+      "id": 43,
+      "qty": 1.00,
+      "name": "Black Forest Cake",
+      "size": 1.00,
+      "unit": "kg",
+      "notes": null,
+      "price": 900.00,
+      "flavor": "Chocolate",
+      "product": {
+        "id": 1,
+        "name": "Black Forest Cake"
+      },
+      "gst_rate": 5.00,
+      "gst_value": 45.00,
+      "discount_value": 0.00,
+      "gst_applicable": 1,
+      "discount_exempt": 0,
+      "is_gst_inclusive": 0,
+      "product_variant_id": 2
+    },
+    {
+      "id": 44,
+      "qty": 6.00,
+      "name": "Chocolate Truffle Pastry",
+      "size": null,
+      "unit": null,
+      "notes": null,
+      "price": 90.00,
+      "flavor": null,
+      "product": {
+        "id": 3,
+        "name": "Chocolate Truffle Pastry"
+      },
+      "gst_rate": 5.00,
+      "gst_value": 27.00,
+      "discount_value": 0.00,
+      "gst_applicable": 1,
+      "discount_exempt": 0,
+      "is_gst_inclusive": 0,
+      "product_variant_id": null
+    }
+  ],
+  "total": 1512.00,
+  "outlet": {
+    "id": 1,
+    "name": "Sunrise Bakers - MG Road"
+  },
+  "customer": {
+    "id": 1,
+    "name": "Priya Sharma",
+    "phone": "9900000001"
+  },
+  "payments": [
+    {
+      "id": 30,
+      "amount": 500.00,
+      "method": "upi",
+      "paid_at": "2026-10-21 03:49:01.040678",
+      "request_id": "payment-40608343-ccd4-11f1-aac1-dee7e8d77ce7",
+      "business_id": 1,
+      "payment_type": "advance"
+    },
+    {
+      "id": 31,
+      "amount": 1012.00,
+      "method": "cash",
+      "paid_at": "2026-10-21 03:49:01.351762",
+      "request_id": "payment-409033a5-ccd4-11f1-aac1-dee7e8d77ce7",
+      "business_id": 1,
+      "payment_type": "final"
+    }
+  ],
+  "subtotal": 1440.00,
+  "_metadata": {
+    "etag": "6d00e7b3266c5dc5a2c1d78184e865e2"
+  },
+  "gst_value": 72.00,
+  "created_at": "2026-10-21 03:49:01.040678",
+  "request_id": "order-4060627d-ccd4-11f1-aac1-dee7e8d77ce7",
+  "business_id": 1,
+  "delivery_at": "2026-10-03 10:00:00.000000",
+  "order_status": "confirmed",
+  "discount_type": "amount",
+  "discount_value": 0.00,
+  "delivery_address": "221 Brigade Road, Bengaluru",
+  "cancellation_reason": null
+} |
++-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
++----+--------------------------------------------+--------------+-----------------------------+----------+-----------+---------+
+| id | request_id                                 | order_status | delivery_address            | subtotal | gst_value | total   |
++----+--------------------------------------------+--------------+-----------------------------+----------+-----------+---------+
+| 79 | order-4060627d-ccd4-11f1-aac1-dee7e8d77ce7 | confirmed    | 221 Brigade Road, Bengaluru |  1440.00 |     72.00 | 1512.00 |
++----+--------------------------------------------+--------------+-----------------------------+----------+-----------+---------+
++----+--------------------------+------------+--------------------+------+--------+----------+-----------+
+| id | name                     | product_id | product_variant_id | qty  | price  | gst_rate | gst_value |
++----+--------------------------+------------+--------------------+------+--------+----------+-----------+
+| 43 | Black Forest Cake        |          1 |                  2 | 1.00 | 900.00 |     5.00 |     45.00 |
+| 44 | Chocolate Truffle Pastry |          3 |               NULL | 6.00 |  90.00 |     5.00 |     27.00 |
++----+--------------------------+------------+--------------------+------+--------+----------+-----------+
++----+----------------------------------------------+--------------+--------+---------+----------------------------+
+| id | request_id                                   | payment_type | method | amount  | paid_at                    |
++----+----------------------------------------------+--------------+--------+---------+----------------------------+
+| 30 | payment-40608343-ccd4-11f1-aac1-dee7e8d77ce7 | advance      | upi    |  500.00 | 2026-10-21 03:49:01.040678 |
+| 31 | payment-409033a5-ccd4-11f1-aac1-dee7e8d77ce7 | final        | cash   | 1012.00 | 2026-10-21 03:49:01.351762 |
++----+----------------------------------------------+--------------+--------+---------+----------------------------+
+STDERR:

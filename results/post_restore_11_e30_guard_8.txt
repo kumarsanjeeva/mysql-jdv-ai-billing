@@ -1,0 +1,238 @@
+-- run_sql.py -- 2026-10-20 22:19:03 UTC
+-- file: sql\11_e30_guard_8.sql
+-- connecting user: per test, see below
+-- host: localhost:3306  (database chosen by the file's own USE)
+======================================================================
+ID                  DESCRIPTION                                                                                                                                    EXPECT      ACTUAL      VERDICT
+E30a                business-1 order with business-1 product 1 and its variant 2 at 900.00                                                                         OK          OK          PASS
+E30a2               business-2 order (outlet 3, customer 4) with business-2 product 7 and its variant 9 at 1000.00                                                 OK          OK          PASS
+E30b                business-1 order with business-2 product 7 (Rainbow Cake) at its own catalog price                                                             ERROR       ERROR 1644  PASS
+E30c                business-1 order with a business-2 variant only (variant 9, Rainbow 1 kg) at its own price                                                     ERROR       ERROR 1644  PASS
+E30d                business-1 order with business-2 product 7 AND its variant 9 (consistent with each other, wrong business)                                      ERROR       ERROR 1644  PASS
+E30e                business-2 order (outlet 3, customer 4) with business-1 product 1 (Black Forest Cake) at its own price                                         ERROR       ERROR 1644  PASS
+E30f                wrong tenant AND wrong price (business-2 product 7 at 100.00 in a business-1 order): which guard reports?                                      ERROR       ERROR 1644  PASS
+E31a                change only business_id (1 -> 2); customer and outlet still belong to business 1                                                               ERROR 1644  ERROR 1644  PASS
+E31b                change business_id (1 -> 2) together with customer (-> 4) and outlet (-> 3), both business 2                                                   ERROR 1644  ERROR 1644  PASS
+E31c                admin changes business_id, customer_id and outlet_id together with a direct UPDATE on orders                                                   ERROR 1644  ERROR 1644  PASS
+E31d                an ordinary change to the same order (its status) is still allowed                                                                             OK          OK          PASS
+E32                 append an existing item of order seed-order-002 (business 1) to seed-order-005 (business 2), keeping its id (duplicate-id insert, not a move)  ERROR 1062  ERROR 1644  SURPRISE
+E30_ROLLBACK_CHECK  seed-order-001/002/005 unchanged and no e30 test orders left                                                                                   OK          OK          PASS
+
+
+--- E30a: business-1 order with business-1 product 1 and its variant 2 at 900.00 (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e30a-same-tenant","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Black Forest Cake","flavor":"Chocolate","size":1.00,"unit":"kg","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":1},"product_variant_id":2}]}');
+SELECT JSON_VALUE(data, '$.business_id') AS order_business, JSON_VALUE(data, '$.items[0].product.id') AS item_product_id
+  FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'e30a-same-tenant';
+ROLLBACK;
+STDOUT:
++----------------+-----------------+
+| order_business | item_product_id |
++----------------+-----------------+
+| 1              | 1               |
++----------------+-----------------+
+STDERR:
+
+
+--- E30a2: business-2 order (outlet 3, customer 4) with business-2 product 7 and its variant 9 at 1000.00 (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":2,"request_id":"e30a2-same-tenant-business-2","order_status":"confirmed","subtotal":1000.00,"discount_type":"amount","discount_value":0.00,"gst_value":50.00,"total":1050.00,"outlet":{"id":3},"customer":{"id":4},"items":[{"name":"Rainbow Cake","flavor":"Rainbow","size":1.00,"unit":"kg","qty":1,"price":1000.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":50.00,"discount_value":0.00,"product":{"id":7},"product_variant_id":9}]}');
+SELECT JSON_VALUE(data, '$.business_id') AS order_business, JSON_VALUE(data, '$.items[0].product.id') AS item_product_id
+  FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'e30a2-same-tenant-business-2';
+ROLLBACK;
+
+-- ------------------------------------------------------------
+-- Cross-tenant items are rejected (the same probes as E30b-e before GUARD 8)
+-- ------------------------------------------------------------
+STDOUT:
++----------------+-----------------+
+| order_business | item_product_id |
++----------------+-----------------+
+| 2              | 7               |
++----------------+-----------------+
+STDERR:
+
+
+--- E30b: business-1 order with business-2 product 7 (Rainbow Cake) at its own catalog price (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e30b-cross-tenant-product","order_status":"confirmed","subtotal":1000.00,"discount_type":"amount","discount_value":0.00,"gst_value":50.00,"total":1050.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Rainbow Cake","qty":1,"price":1000.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":50.00,"discount_value":0.00,"product":{"id":7}}]}');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 3: GUARD 8: order_items.product_id does not belong to the business of the order
+
+
+--- E30c: business-1 order with a business-2 variant only (variant 9, Rainbow 1 kg) at its own price (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e30c-cross-tenant-variant","order_status":"confirmed","subtotal":1000.00,"discount_type":"amount","discount_value":0.00,"gst_value":50.00,"total":1050.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Rainbow Cake","flavor":"Rainbow","size":1.00,"unit":"kg","qty":1,"price":1000.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":50.00,"discount_value":0.00,"product_variant_id":9}]}');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 3: GUARD 8: order_items.product_variant_id does not belong to the business of the order
+
+
+--- E30d: business-1 order with business-2 product 7 AND its variant 9 (consistent with each other, wrong business) (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e30d-cross-tenant-both","order_status":"confirmed","subtotal":1000.00,"discount_type":"amount","discount_value":0.00,"gst_value":50.00,"total":1050.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Rainbow Cake","flavor":"Rainbow","size":1.00,"unit":"kg","qty":1,"price":1000.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":50.00,"discount_value":0.00,"product":{"id":7},"product_variant_id":9}]}');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 3: GUARD 8: order_items.product_id does not belong to the business of the order
+
+
+--- E30e: business-2 order (outlet 3, customer 4) with business-1 product 1 (Black Forest Cake) at its own price (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":2,"request_id":"e30e-cross-tenant-reverse","order_status":"confirmed","subtotal":900.00,"discount_type":"amount","discount_value":0.00,"gst_value":45.00,"total":945.00,"outlet":{"id":3},"customer":{"id":4},"items":[{"name":"Black Forest Cake","qty":1,"price":900.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":45.00,"discount_value":0.00,"product":{"id":1}}]}');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 3: GUARD 8: order_items.product_id does not belong to the business of the order
+
+
+--- E30f: wrong tenant AND wrong price (business-2 product 7 at 100.00 in a business-1 order): which guard reports? (as jdv_agent) ---
+EXPECT: ERROR  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+INSERT INTO order_dv VALUES('{"business_id":1,"request_id":"e30f-wrong-tenant-and-price","order_status":"confirmed","subtotal":100.00,"discount_type":"amount","discount_value":0.00,"gst_value":5.00,"total":105.00,"outlet":{"id":1},"customer":{"id":1},"items":[{"name":"Rainbow Cake","qty":1,"price":100.00,"gst_rate":5.00,"is_gst_inclusive":0,"gst_applicable":1,"discount_exempt":0,"gst_value":5.00,"discount_value":0.00,"product":{"id":7}}]}');
+ROLLBACK;
+
+-- ------------------------------------------------------------
+-- An order's business cannot change (GUARD 8b)
+-- Target: seed-order-002 (business 1, customer 2, outlet 1).
+-- ------------------------------------------------------------
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 3: GUARD 6: order_items.price does not match the current catalog price
+
+
+--- E31a: change only business_id (1 -> 2); customer and outlet still belong to business 1 (as jdv_agent) ---
+EXPECT: ERROR 1644  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-002');
+UPDATE order_dv SET data = JSON_SET(@doc, '$.business_id', 2)
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 4: GUARD 4: orders.customer_id does not belong to orders.business_id
+
+
+--- E31b: change business_id (1 -> 2) together with customer (-> 4) and outlet (-> 3), both business 2 (as jdv_agent) ---
+EXPECT: ERROR 1644  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-002');
+UPDATE order_dv SET data = JSON_SET(@doc, '$.business_id', 2, '$.customer.id', 4, '$.outlet.id', 3)
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 4: GUARD 8: orders.business_id is immutable once inserted
+
+
+--- E31c: admin changes business_id, customer_id and outlet_id together with a direct UPDATE on orders (as jdv_admin) ---
+EXPECT: ERROR 1644  ACTUAL: ERROR 1644  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+UPDATE orders SET business_id = 2, customer_id = 4, outlet_id = 3 WHERE request_id = 'seed-order-002';
+ROLLBACK;
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 3: GUARD 8: orders.business_id is immutable once inserted
+
+
+--- E31d: an ordinary change to the same order (its status) is still allowed (as jdv_agent) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @doc = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-001');
+UPDATE order_dv SET data = JSON_SET(@doc, '$.order_status', 'ready')
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@doc, '$._id');
+SELECT JSON_VALUE(data, '$.order_status') AS status_after, JSON_VALUE(data, '$.business_id') AS business_after
+  FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-001';
+ROLLBACK;
+
+-- ------------------------------------------------------------
+-- E32 again: appending another order's item (with its existing id) is still
+-- rejected. This is a duplicate-id insert, not a move of the row.
+-- ------------------------------------------------------------
+STDOUT:
++--------------+----------------+
+| status_after | business_after |
++--------------+----------------+
+| ready        | 1              |
++--------------+----------------+
+STDERR:
+
+
+--- E32: append an existing item of order seed-order-002 (business 1) to seed-order-005 (business 2), keeping its id (duplicate-id insert, not a move) (as jdv_agent) ---
+EXPECT: ERROR 1062  ACTUAL: ERROR 1644  VERDICT: SURPRISE
+SQL:
+USE jdv_ai_billing;
+START TRANSACTION;
+SET @a = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-002');
+SET @b = (SELECT data FROM order_dv WHERE JSON_VALUE(data, '$.request_id') = 'seed-order-005');
+SET @item = JSON_EXTRACT(@a, '$.items[1]');
+UPDATE order_dv SET data = JSON_ARRAY_APPEND(@b, '$.items', CAST(@item AS JSON))
+ WHERE JSON_VALUE(data, '$._id') = JSON_VALUE(@b, '$._id');
+ROLLBACK;
+
+-- ------------------------------------------------------------
+-- Rollback proof (admin, base tables): nothing was left behind.
+-- A failed assertion is an error, so the verdict shows SURPRISE.
+-- ------------------------------------------------------------
+STDOUT:
+STDERR:
+ERROR 1644 (45000) at line 6: GUARD 8: order_items.product_id does not belong to the business of the order
+
+
+--- E30_ROLLBACK_CHECK: seed-order-001/002/005 unchanged and no e30 test orders left (as jdv_admin) ---
+EXPECT: OK  ACTUAL: OK  VERDICT: PASS
+SQL:
+USE jdv_ai_billing;
+SELECT id, request_id, business_id, customer_id, outlet_id, order_status
+  FROM orders WHERE request_id IN ('seed-order-001', 'seed-order-002', 'seed-order-005') ORDER BY id;
+SELECT IF((SELECT business_id FROM orders WHERE request_id = 'seed-order-002') = 1
+          AND (SELECT customer_id FROM orders WHERE request_id = 'seed-order-002') = 2
+          AND (SELECT outlet_id FROM orders WHERE request_id = 'seed-order-002') = 1
+          AND (SELECT order_status FROM orders WHERE request_id = 'seed-order-001') = 'confirmed'
+          AND (SELECT COUNT(*) FROM orders WHERE request_id LIKE 'e30%') = 0,
+          'PASS: seed orders unchanged, no e30 test orders left', (SELECT 1 UNION SELECT 2)) AS rollback_check;
+STDOUT:
++----+----------------+-------------+-------------+-----------+--------------+
+| id | request_id     | business_id | customer_id | outlet_id | order_status |
++----+----------------+-------------+-------------+-----------+--------------+
+|  1 | seed-order-001 |           1 |           1 |         1 | confirmed    |
+|  2 | seed-order-002 |           1 |           2 |         1 | delivered    |
+|  5 | seed-order-005 |           2 |           4 |         3 | ready        |
++----+----------------+-------------+-------------+-----------+--------------+
++------------------------------------------------------+
+| rollback_check                                       |
++------------------------------------------------------+
+| PASS: seed orders unchanged, no e30 test orders left |
++------------------------------------------------------+
+STDERR:
