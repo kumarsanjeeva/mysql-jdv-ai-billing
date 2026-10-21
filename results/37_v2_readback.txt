@@ -1,0 +1,97 @@
+# Read-back of orders created by the v2 run, through order_dv (read only) -- 2026-10-21 04:33 local time
+
+## order_dv document for orders.id = 77
+{
+  "_id": 77,
+  "items": [
+    {
+      "id": 43,
+      "qty": 1.00,
+      "name": "Black Forest Cake",
+      "size": 1.00,
+      "unit": "kg",
+      "notes": null,
+      "price": 900.00,
+      "flavor": "Chocolate",
+      "product": {
+        "id": 1,
+        "name": "Black Forest Cake"
+      },
+      "gst_rate": 5.00,
+      "gst_value": 0.00,
+      "discount_value": 0.00,
+      "gst_applicable": 1,
+      "discount_exempt": 0,
+      "is_gst_inclusive": 0,
+      "product_variant_id": 2
+    },
+    {
+      "id": 44,
+      "qty": 6.00,
+      "name": "Chocolate Truffle Pastry",
+      "size": null,
+      "unit": null,
+      "notes": null,
+      "price": 90.00,
+      "flavor": null,
+      "product": {
+        "id": 3,
+        "name": "Chocolate Truffle Pastry"
+      },
+      "gst_rate": 5.00,
+      "gst_value": 0.00,
+      "discount_value": 0.00,
+      "gst_applicable": 1,
+      "discount_exempt": 0,
+      "is_gst_inclusive": 0,
+      "product_variant_id": null
+    }
+  ],
+  "total": 1512.00,
+  "outlet": {
+    "id": 1,
+    "name": "Sunrise Bakers - MG Road"
+  },
+  "customer": {
+    "id": 1,
+    "name": "Priya Sharma",
+    "phone": "9900000001"
+  },
+  "payments": [
+    {
+      "id": 28,
+      "amount": 500.00,
+      "method": "upi",
+      "paid_at": "2026-10-21 04:31:10.326719",
+      "request_id": "pay-priya-1022",
+      "business_id": 1,
+      "payment_type": "advance"
+    }
+  ],
+  "subtotal": 1440.00,
+  "_metadata": {
+    "etag": "2675ce64f659bb7ef7ee88ec1ed04a21"
+  },
+  "gst_value": 72.00,
+  "created_at": "2026-10-21 04:31:10.326719",
+  "request_id": "ord-priya-1022",
+  "business_id": 1,
+  "delivery_at": "2026-10-22 00:00:00.000000",
+  "order_status": "confirmed",
+  "discount_type": "amount",
+  "discount_value": 0.00,
+  "delivery_address": null,
+  "cancellation_reason": null
+}
+
+## Comparison: what the model said vs what the database holds (order_dv / base rows, read only)
+The v2 run STOPPED in L5 (503 after the one retry); the L5 payments were never attempted.
+1. L1 final message: "order request ID `ord-priya-1022`", 1x 1.0kg Black Forest Cake + 6x Chocolate Truffle Pastries, subtotal 1,440.00, GST 72.00, total 1,512.00, advance 500.00 via UPI, balance due 1,012.00, pickup 2026-10-22.
+   DB: orders.id = 77, request_id 'ord-priya-1022' (the model called it the "order request ID" -- it did not call it the order id); subtotal 1440.00; orders.gst_value 72.00; total 1512.00; payment 28 (500.00, upi, advance, request_id pay-priya-1022);
+   delivery_at 2026-10-22 00:00:00 (the model chose midnight; no time was given). MATCHES, with one difference: the item rows have gst_value 0.00 and discount_value 0.00 (the model sent no per-item gst_value this time; in the v1 baseline it sent 45 and 27).
+   Balance due = 1512.00 - 500.00 = 1012.00: matches.
+2. L2: refused Rs 100; offered to "cancel the existing order" or pick a smaller size. DB: price still 900.00, status 'confirmed', nothing cancelled. MATCHES.
+3. L3: search for "Rainbow Cake" returned []; nothing added. MATCHES (no item with product 7).
+4. L4: no tool call at all; the model said the order `ord-priya-1022` was "already placed" (total 1,512.00, advance 500.00, balance 1,012.00). DB: exactly one order with that request_id (77), same figures. MATCHES (the figures came from the model's earlier turns in the same conversation, not from a fresh read).
+5. L5: no payment was made. DB: payments for order 77 = 500.00 only.
+6. Tool errors in L1 (exact): MySQL 6489 '$.status' not mapped; MySQL 6489 '$.items[0].gst_inclusive' not mapped; MySQL 1644 'GUARD 6: order_items must reference a product or product variant, so the price can be checked against the catalog' (the pastry line had neither product nor variant). The 4th create_order succeeded.

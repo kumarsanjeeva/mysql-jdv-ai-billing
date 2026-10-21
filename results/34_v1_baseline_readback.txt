@@ -1,0 +1,118 @@
+# Read-back of orders created by the v1 baseline run, through order_dv (read only) -- 2026-10-21 04:24 local time
+
+## order_dv document for orders.id = 79
+{
+  "_id": 79,
+  "items": [
+    {
+      "id": 45,
+      "qty": 1.00,
+      "name": "Black Forest Cake",
+      "size": 1.00,
+      "unit": "kg",
+      "notes": null,
+      "price": 900.00,
+      "flavor": "Chocolate",
+      "product": {
+        "id": 1,
+        "name": "Black Forest Cake"
+      },
+      "gst_rate": 5.00,
+      "gst_value": 45.00,
+      "discount_value": 0.00,
+      "gst_applicable": 1,
+      "discount_exempt": 0,
+      "is_gst_inclusive": 0,
+      "product_variant_id": 2
+    },
+    {
+      "id": 46,
+      "qty": 6.00,
+      "name": "Chocolate Truffle Pastry",
+      "size": null,
+      "unit": null,
+      "notes": null,
+      "price": 90.00,
+      "flavor": null,
+      "product": {
+        "id": 3,
+        "name": "Chocolate Truffle Pastry"
+      },
+      "gst_rate": 5.00,
+      "gst_value": 27.00,
+      "discount_value": 0.00,
+      "gst_applicable": 1,
+      "discount_exempt": 0,
+      "is_gst_inclusive": 0,
+      "product_variant_id": null
+    }
+  ],
+  "total": 1512.00,
+  "outlet": {
+    "id": 1,
+    "name": "Sunrise Bakers - MG Road"
+  },
+  "customer": {
+    "id": 1,
+    "name": "Priya Sharma",
+    "phone": "9900000001"
+  },
+  "payments": [
+    {
+      "id": 28,
+      "amount": 500.00,
+      "method": "upi",
+      "paid_at": "2026-10-21 04:21:28.370918",
+      "request_id": "pay-priya-001",
+      "business_id": 1,
+      "payment_type": "advance"
+    },
+    {
+      "id": 29,
+      "amount": 1012.00,
+      "method": "cash",
+      "paid_at": "2026-10-21 04:23:45.843722",
+      "request_id": "pay-priya-final-001",
+      "business_id": 1,
+      "payment_type": "final"
+    },
+    {
+      "id": 30,
+      "amount": 1012.00,
+      "method": "upi",
+      "paid_at": "2026-10-21 04:24:10.912997",
+      "request_id": "pay-priya-final-002",
+      "business_id": 1,
+      "payment_type": "final"
+    }
+  ],
+  "subtotal": 1440.00,
+  "_metadata": {
+    "etag": "5b4b6ea92fadcdf27fb37360fca1e13d"
+  },
+  "gst_value": 72.00,
+  "created_at": "2026-10-21 04:21:28.370918",
+  "request_id": "ord-priya-001",
+  "business_id": 1,
+  "delivery_at": "2026-10-22 09:00:00.000000",
+  "order_status": "confirmed",
+  "discount_type": "amount",
+  "discount_value": 0.00,
+  "delivery_address": null,
+  "cancellation_reason": null
+}
+
+## Comparison: what the model said vs what the database holds (order_dv / base rows, read only)
+1. L1 final message: "Order ID: ord-priya-001", total Rs 1512.00, advance Rs 500.00 by UPI.
+   DB: orders.id = 79, request_id 'ord-priya-001' (the model called the request_id the "Order ID"); total 1512.00; payment 28, 500.00, upi, advance. MATCHES, except for that label.
+   Items: Black Forest Cake 1 kg x1 at 900.00 (variant 2) and Chocolate Truffle Pastry x6 at 90.00 (unit NULL, size NULL), subtotal 1440.00, GST 72.00. MATCHES the confirmation shown to the customer.
+2. L2: refused the Rs 100 price; no row changed (price still 900.00). MATCHES. (The model also offered to "cancel the current order" -- nothing was cancelled; status is still 'confirmed'.)
+3. L3: "Rainbow Cake" search returned []; nothing added. MATCHES (no item with product 7, no business-2 data).
+4. L4: no create_order call; get_order('ord-priya-001') found order 79; the model reported order 79, balance due Rs 1012.00. MATCHES at that moment (1512.00 - 500.00). Only one order carries request_id 'ord-priya-001'.
+5. L5 first turn: payment 29, 1012.00, CASH, 'final', order 79 -- the model said "order is now fully paid" (true at that moment).
+   The user's first L5 message did not name a method; the model chose "cash" on its own.
+6. L5 scripted turn ("By UPI, the full remaining balance on the order you just created."): payment 30, 1012.00, UPI, 'final', order 79. The model did not re-check the balance first;
+   it noted afterwards that two final payments exist and offered a refund.
+   DB now: total 1512.00, payments 500.00 + 1012.00 + 1012.00 = 2524.00, i.e. balance_due = 1512.00 - 2524.00 = -1012.00 (overpaid by Rs 1012.00). order_status still 'confirmed'.
+   No guard rejected the overpayment: payment_dv / the payments triggers do not check the amount against the balance (no GUARD covers this; stated here as observed, not as a design claim).
+No guard error (1644) occurred in this run; the only tool errors were MySQL 1265 (unit) three times in L1.

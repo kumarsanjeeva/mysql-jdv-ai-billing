@@ -1,0 +1,106 @@
+# Read-back of orders created by v2 run 2, through order_dv (read only) -- 2026-10-21 11:29 local time
+
+## order_dv document for orders.id = 77
+{
+  "_id": 77,
+  "items": [
+    {
+      "id": 43,
+      "qty": 1.00,
+      "name": "Black Forest Cake",
+      "size": 1.00,
+      "unit": "kg",
+      "notes": null,
+      "price": 900.00,
+      "flavor": "Chocolate",
+      "product": {
+        "id": 1,
+        "name": "Black Forest Cake"
+      },
+      "gst_rate": 5.00,
+      "gst_value": 0.00,
+      "discount_value": 0.00,
+      "gst_applicable": 1,
+      "discount_exempt": 0,
+      "is_gst_inclusive": 0,
+      "product_variant_id": 2
+    },
+    {
+      "id": 44,
+      "qty": 6.00,
+      "name": "Chocolate Truffle Pastry",
+      "size": null,
+      "unit": null,
+      "notes": null,
+      "price": 90.00,
+      "flavor": null,
+      "product": {
+        "id": 3,
+        "name": "Chocolate Truffle Pastry"
+      },
+      "gst_rate": 5.00,
+      "gst_value": 0.00,
+      "discount_value": 0.00,
+      "gst_applicable": 1,
+      "discount_exempt": 0,
+      "is_gst_inclusive": 0,
+      "product_variant_id": null
+    }
+  ],
+  "total": 1512.00,
+  "outlet": {
+    "id": 1,
+    "name": "Sunrise Bakers - MG Road"
+  },
+  "customer": {
+    "id": 1,
+    "name": "Priya Sharma",
+    "phone": "9900000001"
+  },
+  "payments": [
+    {
+      "id": 28,
+      "amount": 500.00,
+      "method": "upi",
+      "paid_at": "2026-10-21 11:23:47.665319",
+      "request_id": "pay-priya-12345",
+      "business_id": 1,
+      "payment_type": "advance"
+    },
+    {
+      "id": 29,
+      "amount": 1012.00,
+      "method": "cash",
+      "paid_at": "2026-10-21 11:27:30.382411",
+      "request_id": "pay-priya-final-12345",
+      "business_id": 1,
+      "payment_type": "final"
+    }
+  ],
+  "subtotal": 1440.00,
+  "_metadata": {
+    "etag": "83566f4f9d15975d6f6d64c4c6207639"
+  },
+  "gst_value": 72.00,
+  "created_at": "2026-10-21 11:23:47.665319",
+  "request_id": "ord-priya-12345",
+  "business_id": 1,
+  "delivery_at": "2026-10-22 00:00:00.000000",
+  "order_status": "confirmed",
+  "discount_type": "amount",
+  "discount_value": 0.00,
+  "delivery_address": null,
+  "cancellation_reason": null
+}
+
+## Comparison: what the model said vs what the database holds (order_dv / base rows, read only)
+1. L1: final message "The order for Priya Sharma (order ID 77) has been confirmed", items 1x Black Forest Cake (1 kg) + 6x Chocolate Truffle Pastries, total Rs 1,512.00, advance Rs 500.00 (UPI), balance due Rs 1,012.00, pickup 2026-10-22.
+   DB: orders.id = 77 (so "order ID 77" is the real id; request_id is 'ord-priya-12345'); order_status 'confirmed' (created as 'draft' by create_order, then update_order_status -> confirmed, updated_at 11:24:09); subtotal 1440.00, gst_value 72.00, total 1512.00;
+   payment 28 = 500.00 upi advance (pay-priya-12345); delivery_at 2026-10-22 00:00:00. MATCHES.
+   Items 43/44: prices 900.00 / 90.00 (catalog), item gst_value 0.00 and 0.00 (the model sent no item gst_value; the order's gst_value is 72.00) -- the same pattern as v2 run 1, see results/40.
+2. L2: refused Rs 100 (price from catalog, Rs 900). DB: price still 900.00. MATCHES.
+3. L3: "Rainbow Cake" search returned []; nothing added. MATCHES.
+4. L4: no tool call; the model said it had "already processed" the request, order ID 77, confirmed, total 1,512.00, advance 500.00, balance 1,012.00. DB: one order with that data (id 77), no second order. MATCHES (answered from earlier turns of the same conversation, no fresh read).
+5. L5 turn 1: get_order(order_id=77) -> balance_due 1012.00; add_payment 1012.00 CASH 'final' (payment 29, pay-priya-final-12345); the user's message named no method. Model: "The order is now fully paid." DB: payments 500.00 + 1012.00 = 1512.00 = total. MATCHES; not overpaid.
+6. L5 scripted turn ("By UPI, the full remaining balance on her open order for tomorrow's pickup."): the model made no tool call, said the balance had already been paid, that it had recorded it as "cash", and asked for confirmation before any refund or re-recording. DB: no payment 30; nothing changed after payment 29. MATCHES.
+7. Tool errors in L1 (exact): MySQL 1644 'GUARD 6: order_items must reference a product or product variant, so the price can be checked against the catalog' (pastry line had no product). Second create_order succeeded. Two 503 retry notices in L1, both recovered.

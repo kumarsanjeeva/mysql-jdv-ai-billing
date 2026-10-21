@@ -1,0 +1,49 @@
+# results/40_gst_guard_readonly_check.txt -- READ-ONLY check (2026-10-21, after the Phase 15 restore). No write was run; no fix is proposed.
+# Question: does ANY guard verify that SUM(order_items.gst_value) equals the order's gst_value, and was v2 run-1 order 77
+# (order gst_value 72.00, both items gst_value 0.00) therefore accepted by design?
+# Method: read ACTION_STATEMENT of all 8 triggers of the restored jdv_ai_billing from INFORMATION_SCHEMA.TRIGGERS, then searched them for
+# gst / subtotal / total / qty / SUM( / discount; searched sql/*.sql for the same words; listed the CHECK constraints in sql/01_schema.sql.
+
+## 1. Triggers read (creation order by table/event/ACTION_ORDER)
+trg_order_items_guard_ins, trg_order_items_guard_tenant_ins, trg_order_items_guard_upd,
+trg_orders_guards_ins, trg_orders_guards_upd, trg_orders_guard_business_immutable,
+trg_payments_guard_business_ins, trg_payments_guard_immutable.
+
+## 2. Every trigger line that mentions gst_value, subtotal or total (exact text; this is the complete list -- no other trigger line contains these words,
+##    and no trigger body contains "qty", "SUM(" or "gst" apart from these)
+trg_orders_guards_ins (BEFORE INSERT ON orders):
+    IF ABS(NEW.total - (NEW.subtotal - NEW.discount_value + NEW.gst_value)) > 0.01 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'GUARD 3: orders.total does not match subtotal - discount_value + gst_value';
+trg_orders_guards_upd (BEFORE UPDATE ON orders), same three lines:
+    IF ABS(NEW.total - (NEW.subtotal - NEW.discount_value + NEW.gst_value)) > 0.01 THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'GUARD 3: orders.total does not match subtotal - discount_value + gst_value';
+(Source: sql/01_schema.sql lines 296-298 and 320-322, and the header comment at line 266:
+    -- GUARD 3: orders.total must equal subtotal - discount_value + gst_value
+ The expression read from the database is the same as in the file.)
+
+## 3. The three order_items triggers (GUARD 6 / GUARD 8)
+Their messages (sql/06_guards_6_7.sql lines 65-101, and trg_order_items_guard_tenant_ins from sql/09_guard_8.sql) concern: product/variant must exist, variant must belong to the
+product, price must equal the current catalog price, price/product/variant/order_id immutable on UPDATE, item product/variant must belong to the order's business.
+None of them reads gst_value, gst_rate, qty, subtotal or total.
+
+## 4. CHECK constraints in sql/01_schema.sql (the only ones):
+    line 218: CONSTRAINT chk_order_items_qty CHECK (qty > 0),   -- GUARD 1
+    line 246: CONSTRAINT chk_payments_amount_sign CHECK (   -- GUARD 2
+Neither involves gst_value, subtotal or total.
+
+## 5. Schema comments (sql/01_schema.sql, quoted as written)
+    line 33:  gst_percent   DECIMAL(5,2) NOT NULL DEFAULT 0,   -- legacy/display field; order_items.gst_value is authoritative
+    line 171: gst_percent          DECIMAL(5,2) NOT NULL DEFAULT 0,   -- legacy/display; gst_value is authoritative
+    line 211: order_items.gst_value DECIMAL(10,2) NOT NULL DEFAULT 0   (default 0 when the column is not sent)
+
+## 6. Answer
+- Does ANY guard verify that the sum of order_items.gst_value equals the order's gst_value?  NO. The only guard that touches these columns is GUARD 3, and it checks only
+  orders.total = orders.subtotal - orders.discount_value + orders.gst_value (tolerance 0.01) using values stored on the ORDER row. No trigger, CHECK constraint or view
+  rule in sql/ or in the restored database compares order_items.gst_value (or price * qty) with the order's gst_value or subtotal.
+- Was order 77 of v2 run 1 (order gst_value 72.00, subtotal 1440.00, total 1512.00; items 43 and 44 with gst_value 0.00 because the model did not send it and the column default is 0)
+  therefore accepted by design?  It was accepted because it satisfies every check that exists: GUARD 3 holds (1512.00 = 1440.00 - 0.00 + 72.00), GUARD 6 holds
+  (item prices equal catalog prices 900.00 and 90.00, after the model's third attempt supplied product ids), GUARD 4 and GUARD 8 hold (business 1 throughout).
+  No rule exists that would have rejected item-level GST of 0.00 against an order-level GST of 72.00, so under the current rule set the write is permitted.
+  (Whether that is the INTENDED design is not stated anywhere in the files I read; this document states only what the rules do.)

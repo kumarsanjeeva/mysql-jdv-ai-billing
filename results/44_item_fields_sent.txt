@@ -1,0 +1,48 @@
+# results/44_item_fields_sent.txt -- READ-ONLY transcript check (Phase 16 B). For every SUCCESSFUL create_order call (the call whose next
+# result line is 'TOOL RESULT: Created: ...') in the four runs below: the item fields the model sent, whether gst_value / gst_rate were present, and the
+# order-level GST sent. Values copied from the transcripts' TOOL CALL lines (JSON key order sorted here for reading). No interpretation.
+
+## 3.6-flash run 3  (agent_live_gemini_gemini-3.6-flash_L1_normal_order_run3_order_created_then_429.txt)
+  successful create_order: TOOL RESULT: Created: 4 rows written. Read it back with get_order(request_id='ord-pf202610
+  order-level fields sent: customer={"id": 1}, delivery_at="2026-10-22 10:00:00", discount_type="amount", discount_value=0, gst_value=72, order_status="confirmed", outlet={"id": 1}, request_id="ord-pf20261021-9901a", subtotal=1440, total=1512
+  order-level gst_value sent: 72
+  item[0] (Black Forest Cake): gst_value PRESENT = 45; gst_rate PRESENT = 5
+     all item fields: discount_exempt=0, discount_value=0, flavor="Chocolate", gst_applicable=1, gst_rate=5, gst_value=45, is_gst_inclusive=0, name="Black Forest Cake", price=900, product={"id": 1}, product_variant_id=2, qty=1, size=1, unit="kg"
+  item[1] (Chocolate Truffle Pastry): gst_value PRESENT = 27; gst_rate PRESENT = 5
+     all item fields: discount_exempt=0, discount_value=0, flavor=null, gst_applicable=1, gst_rate=5, gst_value=27, is_gst_inclusive=0, name="Chocolate Truffle Pastry", price=90, product={"id": 3}, qty=6, size=null, unit=null
+  sum of item gst_value sent (absent counted as 0, arithmetic only): 72; order gst_value sent: 72
+  payment sent: amount=500, business_id=1, method="upi", payment_type="advance", request_id="pay-pf20261021-9901b"
+
+## v1 baseline (Phase 13)  (agent_live_gemini_gemini-3.1-flash-lite_v1_L1_normal_order.txt)
+  successful create_order: TOOL RESULT: Created: 4 rows written. Read it back with get_order(request_id='ord-priya-00
+  order-level fields sent: customer={"id": 1}, delivery_at="2026-10-22 09:00:00", discount_type="amount", discount_value=0, gst_value=72, order_status="confirmed", outlet={"id": 1}, request_id="ord-priya-001", subtotal=1440, total=1512
+  order-level gst_value sent: 72
+  item[0] (Black Forest Cake): gst_value PRESENT = 45; gst_rate PRESENT = 5
+     all item fields: discount_exempt=0, discount_value=0, flavor="Chocolate", gst_applicable=1, gst_rate=5, gst_value=45, is_gst_inclusive=0, name="Black Forest Cake", price=900, product={"id": 1}, product_variant_id=2, qty=1, size=1, unit="kg"
+  item[1] (Chocolate Truffle Pastry): gst_value PRESENT = 27; gst_rate PRESENT = 5
+     all item fields: discount_exempt=0, discount_value=0, gst_applicable=1, gst_rate=5, gst_value=27, is_gst_inclusive=0, name="Chocolate Truffle Pastry", price=90, product={"id": 3}, qty=6
+  sum of item gst_value sent (absent counted as 0, arithmetic only): 72; order gst_value sent: 72
+  payment sent: amount=500, business_id=1, method="upi", payment_type="advance", request_id="pay-priya-001"
+
+## v2 run 1 (stopped in L5)  (agent_live_gemini_gemini-3.1-flash-lite_v2_L1_normal_order_run1_stopped_in_L5.txt)
+  successful create_order: TOOL RESULT: Created: 4 rows written. Read it back with get_order(request_id='ord-priya-10
+  order-level fields sent: customer={"id": 1}, delivery_at="2026-10-22 00:00:00", discount_type="amount", discount_value=0, gst_value=72, order_status="confirmed", outlet={"id": 1}, request_id="ord-priya-1022", subtotal=1440, total=1512
+  order-level gst_value sent: 72
+  item[0] (Black Forest Cake): gst_value NOT SENT; gst_rate PRESENT = 5
+     all item fields: flavor="Chocolate", gst_applicable=1, gst_rate=5, is_gst_inclusive=false, name="Black Forest Cake", price=900, product={"id": 1}, product_variant_id=2, qty=1, size=1, unit="kg"
+  item[1] (Chocolate Truffle Pastry): gst_value NOT SENT; gst_rate PRESENT = 5
+     all item fields: gst_applicable=1, gst_rate=5, is_gst_inclusive=false, name="Chocolate Truffle Pastry", price=90, product={"id": 3}, qty=6
+  sum of item gst_value sent (absent counted as 0, arithmetic only): 0; order gst_value sent: 72
+  payment sent: amount=500, business_id=1, method="upi", payment_type="advance", request_id="pay-priya-1022"
+
+## v2 run 2  (agent_live_gemini_gemini-3.1-flash-lite_v2_L1_normal_order.txt)
+  successful create_order: TOOL RESULT: Created: 4 rows written. Read it back with get_order(request_id='ord-priya-12
+  order-level fields sent: customer={"id": 1}, delivery_at="2026-10-22 00:00:00", discount_type="amount", discount_value=0, gst_value=72, order_status="draft", outlet={"id": 1}, request_id="ord-priya-12345", subtotal=1440, total=1512
+  order-level gst_value sent: 72
+  item[0] (Black Forest Cake): gst_value NOT SENT; gst_rate PRESENT = 5
+     all item fields: flavor="Chocolate", gst_applicable=1, gst_rate=5, is_gst_inclusive=0, name="Black Forest Cake", price=900, product={"id": 1}, product_variant_id=2, qty=1, size=1, unit="kg"
+  item[1] (Chocolate Truffle Pastry): gst_value NOT SENT; gst_rate PRESENT = 5
+     all item fields: gst_applicable=1, gst_rate=5, is_gst_inclusive=0, name="Chocolate Truffle Pastry", price=90, product={"id": 3}, qty=6
+  sum of item gst_value sent (absent counted as 0, arithmetic only): 0; order gst_value sent: 72
+  payment sent: amount=500, business_id=1, method="upi", payment_type="advance", request_id="pay-priya-12345"
+
