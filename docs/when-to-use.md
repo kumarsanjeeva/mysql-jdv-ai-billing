@@ -10,7 +10,8 @@ at higher code cost).
 
 ## Known limitation: no row-level security on reads
 
-JSON Duality Views have no row-level security, and neither does MySQL. A
+JSON Duality Views have no row-level security, and this repo uses none from
+MySQL itself (MySQL's own position on row-level security was not tested here). A
 grant on a duality view is all-or-nothing: an account that can `SELECT` from
 `order_dv` can read every business's orders. In this demo:
 

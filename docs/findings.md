@@ -441,6 +441,145 @@ the GUARD 6 shown above. Re-applying `sql/09` restored the order; the evidence
 
 **Regression after the lock** (restored database, run after the order_id lock; shown in `results/32_regression_and_second_restore.txt` and `results/post_restore_*.txt`): `04` 25/25 PASS (E10 `ERROR 6491`); `05` 6/6; `07` 17/17; `08` 3/3; `11` 12 of 13 (the one SURPRISE is E32: expected 1062, actual 1644). Not shown by any results file after the lock: `13`, and the scripted agent scenarios S1-S10 and G1-G7. `03` was not re-run for this change.
 
+## Known limits
+
+Six things this database does **not** enforce, or that were not tested. They
+were found while running the live agent tests and reviewing the guards. No
+trigger was added for any of them; each entry says what is not enforced, the
+evidence, what a fix would need, and why none was built.
+
+### 1. A payment can push the total paid above the order total
+
+- **Not enforced.** Nothing compares the payments on an order with the order's
+  `total`. In the v1 baseline live run the agent added a cash payment of
+  1012.00 and then, after a second request, a UPI payment of 1012.00 for the
+  same balance. Order 79 ended with `total` 1512.00 and payments
+  500.00 + 1012.00 + 1012.00 = 2524.00. The database accepted both inserts.
+- **Evidence.** `results/33_gemini_v1_baseline_db_rows_created.txt` (order 79,
+  payments 28, 29, 30; paid 2524.00 against total 1512.00);
+  `results/34_v1_baseline_readback.txt` (balance_due 1512.00 - 2524.00 =
+  -1012.00); `results/agent_live_gemini_gemini-3.1-flash-lite_v1_L5_balance.txt`;
+  the trigger list in `results/31_real_restore_check.txt` (only two triggers on
+  `payments`: `trg_payments_guard_business_ins` and
+  `trg_payments_guard_immutable`; their source in `sql/06` and `sql/01` checks
+  the order's business and that a payment never changes, and sums no amounts).
+  The model noted the double payment
+  afterwards and offered a refund; that was its own message, not a database
+  rule.
+- **A fix would need.** A check on every payment insert that adds up the
+  order's other payments and compares the sum with `orders.total`, and a way to
+  stop two simultaneous payments from both passing (a locking read inside the
+  trigger might do it; it has not been tried). It would also need
+  decisions on refunds (net or gross) and on which payment types count
+  (entry 3).
+- **Why not built.** `udhaar_settlement` (entry 3) may not belong to a single
+  order's total, so a simple per-order check could reject a valid payment. The
+  decision was not to build it.
+
+### 2. Item `gst_value` is not required to add up to the order's `gst_value`
+
+- **Not enforced.** An application this schema was modelled on requires it; the
+  database does not enforce it. The only check touching these columns is
+  GUARD 3, which tests `orders.total = subtotal - discount_value + gst_value`
+  on the order row alone. Nothing compares `SUM(order_items.gst_value)` with
+  `orders.gst_value`.
+- **Evidence.** `results/40_gst_guard_readonly_check.txt` (every trigger line
+  that mentions `gst_value`, `subtotal` or `total`: only the GUARD 3
+  expression on `orders`; no CHECK constraint involves them).
+  `results/44_item_fields_sent.txt` (in the successful `create_order` calls of
+  the two v2 live runs the model sent `gst_rate` 5 but no item `gst_value`; in
+  the v1 baseline and in the `gemini-3.6-flash` run 3 it sent 45 and 27).
+  `results/37_v2_readback.txt` and `results/42_v2_run2_readback.txt` (order 77:
+  `orders.gst_value` 72.00, both items 0.00; `order_items.gst_value` defaults to
+  0 when not sent, `sql/01_schema.sql`).
+- **A fix would need.** A trigger cannot enforce equality when the order is
+  created, because the order row appears to be inserted before its items. This is
+  inferred, not tested directly: GUARD 7 and GUARD 8 reject a nested child
+  whose business differs from the order's
+  (`results/08_e29_payment_business_guard.txt` E29c,
+  `results/11_e30_guard_8.txt` E30b), which they could only do if the order
+  row were already readable. A trigger can check an upper bound as
+  each item is inserted, and check equality when the order row is later
+  updated; both leave a window in which an order exists with the wrong item
+  GST. Closing the window needs the check outside row triggers, for example one
+  write path (a stored procedure) that inserts the order and its items and then
+  verifies the sums, or a verification in the client. None of these was built or
+  run.
+- **Why not built.** The partial checks above would not have rejected the
+  orders seen in the live runs at creation. The requirement is recorded here as
+  an open gap.
+
+### 3. `udhaar_settlement` payments may not map to one order's total
+
+- **Not enforced or defined.** `payments.payment_type` allows
+  `udhaar_settlement` (`sql/01_schema.sql` line 237). The intended meaning is a
+  customer with pending credit paying, which may settle credit across orders
+  rather than one order's total. No script, seed row or live run in this
+  repository inserts a payment of that type (no `udhaar_settlement` text in any
+  `results/` file), so how it should interact with an order is untested and
+  undefined here.
+- **Evidence.** `sql/01_schema.sql` line 237 (the enum value); its absence from
+  every file in `results/`.
+- **A fix would need.** A definition of how a settlement is matched to orders
+  (per order, per customer ledger, or not at all), then a rule that follows
+  from it.
+- **Why not built.** Without that definition any amount rule on payments could
+  reject a valid settlement; this is why entry 1 was not built as a simple
+  check.
+
+### 4. Cancelled orders, and lowering `orders.total` below the amount already paid, are not covered
+
+- **Not enforced.** No rule stops a payment being added to a cancelled order,
+  and no rule stops `orders.total` (with `subtotal` and `gst_value`, so GUARD 3
+  still balances) from being changed to less than what has already been paid.
+  Neither situation was tested.
+- **Evidence.** The trigger list in `results/31_real_restore_check.txt` (only
+  the two `payments` triggers named in entry 1); `order_status` appears in no
+  trigger source in `sql/01` or `sql/06`, and the only `total` check is GUARD 3
+  on the order row (`results/40_gst_guard_readonly_check.txt`). A
+  cancelled order exists in the seed (`seed-order-004`, `sql/01_schema.sql`),
+  but no test pays or edits it.
+- **A fix would need.** A decision on what a cancelled order may still receive
+  (refunds only?), and an `orders` UPDATE check that compares a new `total`
+  with the payments already recorded.
+- **Why not built.** Not requested; recorded as not covered.
+
+### 5. An administrator can still change `products.business_id`
+
+- **Not enforced.** `products.business_id` has no guard. A direct
+  `UPDATE products SET business_id = ...` by an administrator would leave
+  existing order items pointing at a product of another business (GUARD 8 only
+  checks when an item is inserted).
+- **Evidence.** [`when-to-use.md`](when-to-use.md) already lists it as still
+  open. No script in `sql/` updates `products.business_id`, so the behaviour has
+  not been run. What is shown: `catalog_dv` refuses an administrator's price
+  change because the view has no UPDATE annotation (`results/04_edge_cases.txt`
+  E04b); that does not cover a direct update of the base table.
+- **A fix would need.** A BEFORE UPDATE trigger on `products` (and on
+  `product_variants` through its product) that rejects a `business_id` change,
+  in the style of GUARD 8b, plus a probe run first to show the gap exists, as
+  was done for E30 and E33.
+- **Why not built.** Documented as a limit by decision; it is an admin-only path
+  (the agent has no grant on base tables, E13).
+
+### 6. Changing an item's `order_id` through `order_dv` is untested
+
+- **Not known.** The lock on `order_items.order_id` (GUARD 6 UPDATE) was tested
+  only with a direct administrator `UPDATE` on the base table (E33, E33b). A
+  move attempted through the `order_dv` document (editing the item arrays of two
+  orders) was not probed. E32 tried a different thing, appending another
+  order's item with its existing id, which is a duplicate-id insert, not a move.
+- **Evidence.** `results/12_e33_order_id_probe.txt` (before: accepted),
+  `results/13_e33_order_id_guard.txt` (after: `ERROR 1644`); the E32 and E33
+  sections of this file state that the `order_dv` path was not probed. The
+  trigger is a table trigger, so it would be expected to fire for any path, but
+  that expectation has not been run and is not claimed.
+- **A fix would need.** A probe: an `order_dv` UPDATE that places one order's
+  item in another order's `items` array in a single document, run before and
+  after, recorded in `results/`.
+- **Why not built.** Untested rather than known to be open; recorded so that no
+  document claims the path is closed.
+
 ## Official limitations, not tested here
 
 The MySQL 9.7 reference manual lists restrictions on duality views that no script in this repo exercises. Source pages:

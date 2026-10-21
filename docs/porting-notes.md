@@ -48,13 +48,13 @@ constraint, not silently produce a duplicate order — verified in `docs/finding
 
 ## RLS: not ported
 
-MySQL has no row-level security. `business_id` stays on every relevant table
+This repo uses no row-level security from MySQL itself (MySQL's own position on
+row-level security was not tested here). `business_id` stays on every relevant table
 (as in the existing application), and two boundaries replace RLS:
 - `AGENT_DB_USER` has grants on the JSON Duality Views only, never on base
   tables (a privilege-level boundary — verified empirically, see E12/E13).
 - Tenant/business scoping is enforced in `agent/tools.py` (a code-level
-  boundary — no session-identity function was used here to
-  attach any policy to).
+  boundary — no session-identity function was used here).
 
 A real gap this leaves: foreign keys alone do not enforce that
 `orders.customer_id`/`orders.outlet_id` belong to the same `business_id` as

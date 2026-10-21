@@ -93,7 +93,7 @@ findings-based guidance.
 
 ## Documentation index
 
-- [`docs/architecture.md`](docs/architecture.md) — diagrams (planned; stub only)
+- [`docs/architecture.md`](docs/architecture.md) — component, trust-boundary, schema, write/read, and concurrency diagrams
 - [`docs/schema.md`](docs/schema.md) — ER diagram + table reference (planned; stub only)
 - [`docs/duality-views.md`](docs/duality-views.md) — each view, annotated
 - [`docs/findings.md`](docs/findings.md) — every test, expected vs. actual
