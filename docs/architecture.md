@@ -187,8 +187,8 @@ Not every table has a duality view. **`gst_rate_history` is reporting-only**
 (plain SQL). **`staff` exists so seed data and the concurrency scenario can
 name a `created_by`; the agent never writes it.**
 
-Column-level detail belongs in [`schema.md`](schema.md) once that file is
-filled in; the CREATE TABLE text is `sql/01_schema.sql`.
+Column-level detail (types, keys, checks, triggers) is in
+[`schema.md`](schema.md); the CREATE TABLE text is `sql/01_schema.sql`.
 
 Rebuild order (`scripts/reset_db.py`):
 
@@ -481,8 +481,8 @@ Porting background: [`porting-notes.md`](porting-notes.md).
 
 ## Related docs
 
-- [`schema.md`](schema.md) — table reference (planned)
-- [`duality-views.md`](duality-views.md) — each view, annotations, payments rule
+- [`schema.md`](schema.md) — table reference: columns, keys, checks, triggers
+- [`duality-views.md`](duality-views.md) — each view: CREATE statement, sample document, nested tables, tests; payments rule
 - [`findings.md`](findings.md) — every test, expected vs actual
 - [`when-to-use.md`](when-to-use.md) — JDV vs alternatives; RLS limitation
 - [`porting-notes.md`](porting-notes.md) — AUTO_INCREMENT, `request_id`, no RLS

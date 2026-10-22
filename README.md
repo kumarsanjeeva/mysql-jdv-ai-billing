@@ -94,8 +94,8 @@ findings-based guidance.
 ## Documentation index
 
 - [`docs/architecture.md`](docs/architecture.md) — component, trust-boundary, schema, write/read, and concurrency diagrams
-- [`docs/schema.md`](docs/schema.md) — ER diagram + table reference (planned; stub only)
-- [`docs/duality-views.md`](docs/duality-views.md) — each view, annotated
+- [`docs/schema.md`](docs/schema.md) — table reference from `sql/01_schema.sql`: columns, keys, checks, triggers (the ER diagram is in `docs/architecture.md`)
+- [`docs/duality-views.md`](docs/duality-views.md) — each view: `CREATE` statement, sample document, nested tables, tests; plus the payments rule
 - [`docs/findings.md`](docs/findings.md) — every test, expected vs. actual
 - [`docs/when-to-use.md`](docs/when-to-use.md) — JDV vs. alternatives
 - [`docs/porting-notes.md`](docs/porting-notes.md) — PostgreSQL -> MySQL decisions
