@@ -29,19 +29,19 @@ intent and was not tested here.
 
 ```mermaid
 flowchart TB
-  staff["Counter staff"]
-  llm["LLM: Gemini or Anthropic"]
-  loop["agent/agent.py chat loop"]
-  tools["agent/tools.py six tools"]
-  dbpy["agent/db.py AGENT_DB_USER only"]
-  scripted["agent/scenarios.py no API key"]
-  live["agent/live_scenarios.py captured live runs"]
-  admin["jdv_admin / MYSQL_USER"]
-  runner["scripts/run_sql.py and reset_db.py"]
+  staff["Counter<br/>staff"]
+  llm["LLM: Gemini<br/>or Anthropic"]
+  loop["agent/agent.py<br/>chat loop"]
+  tools["agent/tools.py<br/>six tools"]
+  dbpy["agent/db.py<br/>AGENT_DB_USER only"]
+  scripted["agent/scenarios.py<br/>no API key"]
+  live["agent/live_scenarios.py<br/>captured live runs"]
+  admin["jdv_admin /<br/>MYSQL_USER"]
+  runner["scripts/run_sql.py<br/>and reset_db.py"]
   mysql[("MySQL 9.7.2")]
-  views["JSON Duality Views"]
+  views["JSON Duality<br/>Views"]
   tables["Base tables"]
-  results["results/ captured output"]
+  results["results/<br/>captured output"]
 
   staff --> loop
   loop --> llm
@@ -88,19 +88,19 @@ flowchart LR
     model["LLM"]
   end
   subgraph app["Thin Python"]
-    prompt["System prompt v1 or v2"]
-    where["WHERE business_id = AGENT_BUSINESS_ID"]
-    etag["etag retry once on 6494"]
+    prompt["System prompt<br/>v1 or v2"]
+    where["WHERE business_id<br/>= AGENT_BUSINESS_ID"]
+    etag["etag retry once<br/>on 6494"]
   end
   subgraph contract["Agent contract"]
-    odv["order_dv INSERT UPDATE"]
-    pdv["payment_dv INSERT"]
-    cdv["catalog_dv SELECT"]
-    cudv["customer_dv SELECT"]
+    odv["order_dv<br/>INSERT UPDATE"]
+    pdv["payment_dv<br/>INSERT"]
+    cdv["catalog_dv<br/>SELECT"]
+    cudv["customer_dv<br/>SELECT"]
   end
   subgraph db["Database always"]
     annot["JDV annotations"]
-    chk["CHECK plus UNIQUE"]
+    chk["CHECK plus<br/>UNIQUE"]
     trg["GUARD triggers"]
     fk["Foreign keys"]
   end
@@ -137,9 +137,9 @@ Four independent layers, each exercised in [`findings.md`](findings.md):
    tested for `jdv_agent` (through `order_dv`) and `jdv_admin` (a direct
    `UPDATE payments`) only (E25/E26, E31c).
 4. **Python `WHERE business_id`.** Read-side only, in `agent/tools.py`.
-   Duality views have no row-level security, and this repo uses none from
-   MySQL itself (MySQL's own position on row-level security was not tested
-   here). A grant on `order_dv` is all-or-nothing: the same account can `SELECT`
+   This repo found no row-level security on duality views (not verified
+   against the manual) and uses none from MySQL itself (MySQL's own position
+   on row-level security was not tested here). A grant on `order_dv` is all-or-nothing: the same account can `SELECT`
    another business's order if the `WHERE` is omitted
    ([`when-to-use.md`](when-to-use.md); `agent/scenarios.py` part 2). Writes
    of a cross-tenant document are what the guards stop.
@@ -208,28 +208,28 @@ instead of GUARD 6 (`sql/14_trigger_order_evidence.sql`,
 
 ```mermaid
 flowchart TB
-  subgraph order_dv["order_dv FROM orders WITH INSERT UPDATE no DELETE"]
-    o["order scalars plus _id plus _metadata.etag"]
-    out["outlet id, name RO"]
-    cust["customer id, name, phone RO"]
-    items["items array WITH INSERT UPDATE no DELETE"]
-    pays["payments array WITH INSERT UPDATE"]
+  subgraph order_dv["order_dv FROM orders<br/>WITH INSERT UPDATE<br/>no DELETE"]
+    o["order scalars plus<br/>_id plus<br/>_metadata.etag"]
+    out["outlet id, name<br/>RO"]
+    cust["customer id,<br/>name, phone RO"]
+    items["items array<br/>WITH INSERT UPDATE<br/>no DELETE"]
+    pays["payments array<br/>WITH INSERT UPDATE"]
     o --> out
     o --> cust
     o --> items
     o --> pays
-    items --> prod["product id, name RO"]
-    items --> pvid["product_variant_id scalar not nested object"]
+    items --> prod["product id,<br/>name RO"]
+    items --> pvid["product_variant_id<br/>scalar not<br/>nested object"]
   end
-  subgraph payment_dv["payment_dv FROM payments WITH INSERT only"]
+  subgraph payment_dv["payment_dv FROM payments<br/>WITH INSERT only"]
     p["payment scalars"]
-    p --> oref["order id, request_id, status, total RO"]
+    p --> oref["order id, request_id,<br/>status, total RO"]
   end
-  subgraph catalog_dv["catalog_dv FROM products fully RO"]
-    cat["product plus variants array"]
+  subgraph catalog_dv["catalog_dv FROM products<br/>fully RO"]
+    cat["product plus<br/>variants array"]
   end
-  subgraph customer_dv["customer_dv FROM customers fully RO"]
-    c["customer plus orders array summary no items"]
+  subgraph customer_dv["customer_dv FROM customers<br/>fully RO"]
+    c["customer plus<br/>orders array<br/>summary no items"]
   end
 ```
 
@@ -452,6 +452,7 @@ Separately, reads across tenants remain possible if a client skips the Python
 sql/00–02, 06, 09     rebuild: users, schema, views, guards
 sql/03, 04, 05        happy-path DML, edge cases, SQL scenario
 sql/07, 08, 10–14     guard proofs (before/after GUARD 8, E33 lock)
+sql/49                GUARD 1 and 3 negative tests (E34, E35)
 sql/45, 47, 48        version, manual vs DV, admin grants
 agent/db.py           AGENT_DB_USER, autocommit, password never logged
 agent/tools.py        six tools, business_id WHERE, etag retry
@@ -473,7 +474,7 @@ Use the views for **one-document agent I/O** with database-side guards.
 
 Do not use them for bulk load, set-based updates, upserts, or agent-side
 `EXPLAIN` (E06–E09c). POS, reporting, and catalog maintenance stay on **base
-tables** as an admin. That split is the architecture.
+tables** as an admin. That is the intended split, not tested here.
 
 Guidance and the read-side RLS gap: [`when-to-use.md`](when-to-use.md).
 Porting background: [`porting-notes.md`](porting-notes.md).
