@@ -61,12 +61,15 @@ docs/           architecture, schema, duality-view reference, findings, guidance
 
 ## The duality views
 
-_(Planned: table populated from [`docs/duality-views.md`](docs/duality-views.md)
-once the views are documented.)_
+Each view's `CREATE` statement, sample document, nested tables and tests are
+in [`docs/duality-views.md`](docs/duality-views.md).
 
 | View | Root | Nested | Annotations | Purpose |
 |------|------|--------|-------------|---------|
-| _TBD_ | | | | |
+| `order_dv` | `orders` | `order_items` (`items`), `payments`; singletons `products`, `customers`, `outlets` | `WITH(INSERT, UPDATE)` on the root and both arrays; no `DELETE` | read, create and update orders |
+| `payment_dv` | `payments` | `orders` (singleton `order`) | `WITH(INSERT)` | add a payment to an existing order |
+| `catalog_dv` | `products` | `product_variants` (`variants`) | none (read-only) | search the catalog |
+| `customer_dv` | `customers` | `orders` (`orders`) | none (read-only) | look up a customer and order history |
 
 ## Sample: one order document
 
