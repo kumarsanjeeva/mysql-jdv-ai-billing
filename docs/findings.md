@@ -120,7 +120,7 @@ children, `WITH(INSERT, UPDATE)`.
 
 Evidence: `results/repro_datetime_roundtrip.sql` / `.txt` (five ways), and
 `results/repro_e23_datetime_text_roundtrip.sql` / `.txt` (standalone,
-bug-report style).
+self-contained). Observed on 9.7.2; not reported to MySQL.
 
 Setup: root `WITH(INSERT, UPDATE)`; nested child array `WITH(INSERT)` only
 (the `order_dv.payments` shape) with a `DATETIME(6)` column. The client
