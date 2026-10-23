@@ -129,7 +129,8 @@ Four independent layers, each exercised in [`findings.md`](findings.md):
 2. **View annotations.** Even `jdv_admin` cannot `UPDATE catalog_dv.price`
    (`ERROR 6497`, E04b). Omitting an item or payment from an `order_dv`
    write is treated as DELETE, which the view refuses (`ERROR 6498`, E02/E03).
-   One document per statement (E06–E08).
+   A multi-row `UPDATE`, `INSERT ... SELECT` and an upsert were refused as the
+   agent (E06–E08).
 3. **Triggers and CHECKs.** Tenant, quantity, price, order totals, payment
    immutability (quantity and totals: E34 and E35, direct statements as
    `jdv_admin`).
@@ -359,9 +360,10 @@ document except `get_order` asking SQL to add `balance_due`.
 
 `gst_rate_history`, `staff`, and base tables are not on this path for the
 agent. `EXPLAIN SELECT` on a duality view works for an account with rights
-on the underlying tables; the agent cannot EXPLAIN at all (`ERROR 1345`,
-E09b). `EXPLAIN UPDATE` on a duality view is `ERROR 6482` for everyone
-(E09c).
+on the underlying tables (E09, as `jdv_admin`); the agent could not run it
+(`ERROR 1345`, E09b). `EXPLAIN UPDATE` on a duality view was `ERROR 6482`,
+observed as `jdv_admin` (E09c); `EXPLAIN INSERT` and `EXPLAIN DELETE` were
+not tried.
 
 ## 7. Concurrency
 
@@ -473,9 +475,16 @@ do not name the application this was ported from.
 
 Use the views for **one-document agent I/O** with database-side guards.
 
-Do not use them for bulk load, set-based updates, upserts, or agent-side
-`EXPLAIN` (E06–E09c). POS, reporting, and catalog maintenance stay on **base
-tables** as an admin. That is the intended split, not tested here.
+Do not use them for the following; POS, reporting, and catalog maintenance
+stay on **base tables** as an admin. That split is the intended design, not
+tested here.
+
+- Multi-row updates: a multi-row `UPDATE` failed with `ERROR 6482` (E06).
+- Upserts: `INSERT ... ON DUPLICATE KEY UPDATE` failed with `ERROR 6482` (E08).
+- `INSERT ... SELECT`: failed with `ERROR 6482` (E07).
+- Agent-side `EXPLAIN`: `EXPLAIN SELECT` failed for the agent with `ERROR 1345`
+  (E09b).
+- Bulk load (`LOAD DATA`): the manual lists it; not tested here.
 
 Guidance and the read-side RLS gap: [`when-to-use.md`](when-to-use.md).
 Porting background: [`porting-notes.md`](porting-notes.md).

@@ -48,14 +48,17 @@ What this means:
 - **E04/E04b, E12/E13:** two independent layers stop writes. Grants decide
   what the agent may touch at all (views yes, tables no); annotations decide
   what a view allows even for an admin.
-- **E06-E08:** one document per statement. Bulk updates, `INSERT ... SELECT`
-  and upserts are not available through a duality view; use SQL on the base
-  tables for those (as an admin, not the agent).
-- **E09 / E09b / E09c:** `EXPLAIN SELECT` works on a duality view for an
-  account with rights on the underlying tables; `EXPLAIN UPDATE` fails with
-  6482 for everyone; and the agent cannot EXPLAIN at all, because it has no
-  rights on the underlying tables. Plan analysis therefore needs a separate
-  DBA account -- it cannot be done with the agent's credentials.
+- **E06-E08:** as `jdv_agent` on 9.7.2, a multi-row `UPDATE` (E06),
+  `INSERT ... SELECT` (E07) and `INSERT ... ON DUPLICATE KEY UPDATE` (E08)
+  each failed with `ERROR 6482`. Bulk load and other set-based writes were not
+  tried; see [Official limitations](#official-limitations-not-tested-here).
+  The base tables are the place for those (as an admin, not the agent).
+- **E09 / E09b / E09c:** `EXPLAIN SELECT` returned a plan for `jdv_admin`
+  (E09) and failed for the agent with `ERROR 1345` (E09b), which has no rights
+  on the underlying tables. `EXPLAIN UPDATE` failed as `jdv_admin` with
+  `ERROR 6482` (E09c); `EXPLAIN INSERT` and `EXPLAIN DELETE` were not tried.
+  Plan analysis therefore needs an account with rights on the base tables --
+  it cannot be done with the agent's credentials.
 - **E10, E11, E15, REFUND2:** the database rejects bad references, cross-
   tenant orders (GUARD 4), duplicate requests and wrong-signed refunds before
   anything is stored -- the agent's code does not have to check any of these.
@@ -606,21 +609,47 @@ evidence, what a fix would need, and why none was built.
 
 ## Official limitations, not tested here
 
-The MySQL 9.7 reference manual lists restrictions on duality views that no script in this repo exercises. Source pages:
-https://dev.mysql.com/doc/refman/9.7/en/jdv-limitations.html (limitations on DML) and
-https://dev.mysql.com/doc/refman/9.7/en/json-duality-views-updatable.html (updatable views). The lists below were taken on
-2026-10-21 from a summarised fetch of those pages, not from the page text; check them against the pages before quoting.
-Nothing in this section is a finding of this repo: no results/ file backs it.
+This section sets the MySQL 9.7 reference manual next to what this repo tested. It comes from reading two
+manual pages on 2026-10-24, paraphrased here:
 
-- `REPLACE` is not supported on a duality view.
-- `LOAD DATA` and `LOAD XML` are not supported.
-- The `LOW_PRIORITY` and `IGNORE` clauses are not supported.
-- Data modification on an SQL view defined over a duality view is not supported.
-- An update must use a `WHERE` that identifies a single row.
-- Multi-table `UPDATE` and `DELETE` statements are not allowed.
-- Foreign-key referential actions run for the base tables, and a failing cascade rejects the statement.
-- The generated sub-statements do not acquire new metadata locks or row locks.
-- Replication: operations replicate consistently, and a failed sub-statement is not replicated.
+- https://dev.mysql.com/doc/refman/9.7/en/jdv-limitations.html (limitations on data modification)
+- https://dev.mysql.com/doc/refman/9.7/en/json-duality-views-updatable.html (updatable duality views)
 
-Restrictions on the same pages that our tests do exercise (multi-document update, `INSERT ... SELECT`,
-`INSERT ... ON DUPLICATE KEY UPDATE`, `EXPLAIN`) are in the edge-case section above (E06-E09c).
+The manual also has 26.7 and 26.10 versions of these pages; they were not read. The server run here is 9.7.2
+(`results/45_version.txt`). The "Our test" cells quote only what `results/04_edge_cases.txt` shows; every other
+item is "not tested here", and nothing in the manual column is a finding of this repo.
+
+### Part 1: Limitations the manual lists
+
+The limitations page lists ten items.
+
+| # | What the manual lists | Our test |
+|---|---|---|
+| 1 | Multiple operations on one JSON document are not supported. | Not tested here. E06 is not this item: it is a multi-row `UPDATE`, which failed as `jdv_agent` with `ERROR 6482`, "Multiple object update is not supported for JSON Duality Views." |
+| 2 | `EXPLAIN` on data modification statements. | The manual lists `EXPLAIN` among the limitations on data modification statements. On 9.7.2, `EXPLAIN UPDATE` on `order_dv` failed as `jdv_admin` with `ERROR 6482`, "EXPLAIN for INSERT/UPDATE/DELETE is not supported for JSON Duality Views" (E09c). The message names all three statements; only `UPDATE` was tried. `EXPLAIN SELECT` on `order_dv` returned a plan for `jdv_admin` (E09) and failed for the agent with `ERROR 1345`, "lacking privileges for underlying table" (E09b), because the agent has grants on the views and none on the base tables. One run, one version. |
+| 3 | `REPLACE` is not supported. | Not tested here. |
+| 4 | `LOAD DATA` and `LOAD XML` are not supported. | Not tested here. |
+| 5 | `INSERT ... SELECT` is not supported (the page writes `INSERT ... FROM SELECT`). | E07: `INSERT INTO order_dv SELECT CAST('<document>' AS JSON)` as `jdv_agent` failed with `ERROR 6482`, "INSERT... SELECT is not supported for JSON Duality Views." One run, 9.7.2. |
+| 6 | Multi-table `UPDATE` and `DELETE` are not supported. | Not tested here. |
+| 7 | `INSERT ... ON DUPLICATE KEY UPDATE` is not supported. | E08: `INSERT INTO order_dv VALUES (JSON_SET(@doc, '$.order_status', 'ready')) ON DUPLICATE KEY UPDATE data = VALUES(data)` as `jdv_agent` failed with `ERROR 6482`, "INSERT... ON DUPLICATE KEY UPDATE is not supported for JSON Duality Views." One run, 9.7.2. |
+| 8 | The `LOW_PRIORITY` and `IGNORE` modifiers are not supported. | Not tested here. |
+| 9 | DML on an SQL view defined over a duality view is not supported. | Not tested here. |
+| 10 | An `UPDATE` needs a `WHERE` that identifies a single row. | Not tested here. |
+
+### Part 2: Behaviour the manual describes
+
+The updatable-views page describes how writes behave rather than listing restrictions. None of these points was
+tested against the manual's wording here, except where a test is cited.
+
+- Triggers on the base tables run for the sub-statements the server generates from a document write.
+- If one generated sub-statement fails, all of them are rolled back.
+- The generated sub-statements take no new metadata locks or row locks. The page does not say a trigger cannot
+  take its own lock, so the locking idea in [Known limit 1](#1-a-payment-can-push-the-total-paid-above-the-order-total)
+  stays untested.
+- Foreign-key referential actions run, and a cascade that fails rejects the whole operation (not tested here).
+- An object or sub-object without a modification tag is read-only.
+- The input document is validated against the schema of the view's own documents.
+- Optimistic concurrency is named on this page; the detail is on the concurrency page, which was not read here.
+  A stale etag was rejected with `ERROR 6494` in E01 ([`results/04_edge_cases.txt`](../results/04_edge_cases.txt)).
+
+None of the six Known limits above is listed on either page.
