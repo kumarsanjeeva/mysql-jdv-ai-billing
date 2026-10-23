@@ -73,7 +73,9 @@ in [`docs/duality-views.md`](docs/duality-views.md).
 
 ## Sample: one order document
 
-_(Planned: a real document from `results/`.)_
+A real order document (order 2, with `_metadata.etag`) is shown in the `order_dv`
+section of [`docs/duality-views.md`](docs/duality-views.md), copied from
+`results/02_duality_views.txt`.
 
 ## When to use / not use JDV
 

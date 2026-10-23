@@ -116,7 +116,7 @@ No ORM was used in this repo. Nothing here compares or measures one.
 - Leaving an array element out means delete; `order_dv` refuses it (`ERROR
   6498`, E02/E03).
 - Mixing generated and explicit ids in one nested array is `ERROR 6560`
-  (E16/E24).
+  (E16 and E18 in `results/04_edge_cases.txt`; E24 in `findings.md`).
 - A nested read-only singleton that reads back as null cannot be written back
   (E20).
 - A JSON-text round trip of `paid_at` forced `UPDATE` on the payments array

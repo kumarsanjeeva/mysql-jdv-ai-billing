@@ -256,7 +256,8 @@ Three shapes exist because of measured MySQL behavior, not preference:
   ([`duality-views.md`](duality-views.md)).
 - **Payments on an already-existing order go through `payment_dv`**, not by
   appending to `order_dv.payments`. Mixing generated and explicit
-  AUTO_INCREMENT ids in one nested array is `ERROR 6560` (E16/E24). A client
+  AUTO_INCREMENT ids in one nested array is `ERROR 6560` (E16 and E18 in
+  `results/04_edge_cases.txt`; E24 in `findings.md` explains the subquery case). A client
   cannot know the next id in advance.
 
 ## 5. Agent runtime

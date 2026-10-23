@@ -224,7 +224,7 @@ first `JSON_PRETTY` output):
 | One document per statement | E06, E07, E08 | `ERROR 6482` for multi-document UPDATE, `INSERT ... SELECT`, upsert | `results/04_edge_cases.txt` |
 | `EXPLAIN` | E09, E09b, E09c | OK for admin `EXPLAIN SELECT`; `ERROR 1345` for the agent; `ERROR 6482` for `EXPLAIN UPDATE` | `results/04_edge_cases.txt` |
 | `product_variant_id` as a flat scalar, not a nested object | E20 | a nested object that reads back as `null` cannot be written back (`ERROR 6495`); the scalar form can | `results/repro_null_singleton_update.txt` |
-| Appending a payment inside `order_dv` | E16, E17, E18, E24 | `ERROR 6560` without an id or with an id from an inline subquery; OK with an explicit id given as a value | `results/04_edge_cases.txt`, `results/repro_append_explicit_ids.txt` |
+| Appending a payment inside `order_dv` | E16, E17, E18 (E24 in `findings.md`) | `ERROR 6560` without an id (E16) or with an id from an inline subquery (E18); OK with an explicit id given as a value (E17) | `results/04_edge_cases.txt`, `results/repro_append_explicit_ids.txt` |
 | Payments `WITH(INSERT, UPDATE)` | E23 | a `DATETIME` cannot survive a JSON-text round trip in an insert-only array; design B (UPDATE plus GUARD 5) works | `results/repro_datetime_roundtrip.txt`, `results/repro_payment_design_ab.txt` |
 | A payment cannot change | E25 | `ERROR 1644` GUARD 5 | `results/04_edge_cases.txt` |
 | Item prices through `order_dv` | E28 | GUARD 6, 17 of 17 | `results/07_e28_item_price_guard.txt` |
