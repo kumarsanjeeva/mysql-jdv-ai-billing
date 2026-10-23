@@ -111,7 +111,7 @@ No ORM was used in this repo. Nothing here compares or measures one.
 
 - One document per statement. A multi-row `UPDATE` (E06),
   `INSERT ... SELECT` (E07) and an upsert (E08) were refused with `ERROR 6482`
-  as the agent, and `EXPLAIN SELECT` as the agent failed with `ERROR 1345`
+  as `jdv_agent`, and `EXPLAIN SELECT` as the agent failed with `ERROR 1345`
   (E09b). `EXPLAIN UPDATE` failed with `ERROR 6482` as `jdv_admin` (E09c). The
   manual also lists `LOAD DATA`; it was not tested. See
   [Official limitations](findings.md#official-limitations-not-tested-here).

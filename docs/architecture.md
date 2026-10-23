@@ -130,7 +130,7 @@ Four independent layers, each exercised in [`findings.md`](findings.md):
    (`ERROR 6497`, E04b). Omitting an item or payment from an `order_dv`
    write is treated as DELETE, which the view refuses (`ERROR 6498`, E02/E03).
    A multi-row `UPDATE`, `INSERT ... SELECT` and an upsert were refused as the
-   agent (E06–E08).
+   `jdv_agent` (E06–E08).
 3. **Triggers and CHECKs.** Tenant, quantity, price, order totals, payment
    immutability (quantity and totals: E34 and E35, direct statements as
    `jdv_admin`).
@@ -479,9 +479,11 @@ Do not use them for the following; POS, reporting, and catalog maintenance
 stay on **base tables** as an admin. That split is the intended design, not
 tested here.
 
-- Multi-row updates: a multi-row `UPDATE` failed with `ERROR 6482` (E06).
-- Upserts: `INSERT ... ON DUPLICATE KEY UPDATE` failed with `ERROR 6482` (E08).
-- `INSERT ... SELECT`: failed with `ERROR 6482` (E07).
+- Multi-row updates: a multi-row `UPDATE` failed with `ERROR 6482` as
+  `jdv_agent` (E06).
+- Upserts: `INSERT ... ON DUPLICATE KEY UPDATE` failed with `ERROR 6482` as
+  `jdv_agent` (E08).
+- `INSERT ... SELECT`: failed with `ERROR 6482` as `jdv_agent` (E07).
 - Agent-side `EXPLAIN`: `EXPLAIN SELECT` failed for the agent with `ERROR 1345`
   (E09b).
 - Bulk load (`LOAD DATA`): the manual lists it; not tested here.

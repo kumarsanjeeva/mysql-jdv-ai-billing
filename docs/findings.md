@@ -625,7 +625,7 @@ The limitations page lists ten items.
 
 | # | What the manual lists | Our test |
 |---|---|---|
-| 1 | Multiple operations on one JSON document are not supported. | Not tested here. E06 is not this item: it is a multi-row `UPDATE`, which failed as `jdv_agent` with `ERROR 6482`, "Multiple object update is not supported for JSON Duality Views." |
+| 1 | Multiple operations on one JSON document are not supported. | Not tested here. |
 | 2 | `EXPLAIN` on data modification statements. | The manual lists `EXPLAIN` among the limitations on data modification statements. On 9.7.2, `EXPLAIN UPDATE` on `order_dv` failed as `jdv_admin` with `ERROR 6482`, "EXPLAIN for INSERT/UPDATE/DELETE is not supported for JSON Duality Views" (E09c). The message names all three statements; only `UPDATE` was tried. `EXPLAIN SELECT` on `order_dv` returned a plan for `jdv_admin` (E09) and failed for the agent with `ERROR 1345`, "lacking privileges for underlying table" (E09b), because the agent has grants on the views and none on the base tables. One run, one version. |
 | 3 | `REPLACE` is not supported. | Not tested here. |
 | 4 | `LOAD DATA` and `LOAD XML` are not supported. | Not tested here. |
@@ -634,7 +634,7 @@ The limitations page lists ten items.
 | 7 | `INSERT ... ON DUPLICATE KEY UPDATE` is not supported. | E08: `INSERT INTO order_dv VALUES (JSON_SET(@doc, '$.order_status', 'ready')) ON DUPLICATE KEY UPDATE data = VALUES(data)` as `jdv_agent` failed with `ERROR 6482`, "INSERT... ON DUPLICATE KEY UPDATE is not supported for JSON Duality Views." One run, 9.7.2. |
 | 8 | The `LOW_PRIORITY` and `IGNORE` modifiers are not supported. | Not tested here. |
 | 9 | DML on an SQL view defined over a duality view is not supported. | Not tested here. |
-| 10 | An `UPDATE` needs a `WHERE` that identifies a single row. | Not tested here. |
+| 10 | An `UPDATE` needs a `WHERE` that identifies a single row. | E06: `UPDATE order_dv SET data = JSON_SET(data, '$.order_status', 'ready') WHERE JSON_VALUE(data, '$.business_id') = 1` as `jdv_agent`; the `WHERE` matched 5 rows (a count run just before it). It failed with `ERROR 6482`, "Multiple object update is not supported for JSON Duality Views." An `UPDATE` with no `WHERE` was not tried. One run, 9.7.2. |
 
 ### Part 2: Behaviour the manual describes
 
