@@ -1,0 +1,81 @@
+# Billing assistant transcript -- provider gemini, model gemini-3.1-flash-lite
+# Prompt/tool-description version: v2
+# thinking: default level not documented for this model; observed thought tokens are logged per call
+# Retries: 503 retry: once, 30s; 429 retry: once (per-minute limit only, wait = server delay + 2s, max 90s)
+# Pacing: min 13s between model calls (conservative; chosen for the strictest free-tier limit seen, 5 requests/min)
+
+USER: Look up the customer with phone 9900000002
+[tokens this call: 1036 in, 25 out, 0 thinking]
+
+TOOL CALL get_customer: {"phone": "9900000002"}
+TOOL RESULT: {"_id": 2, "name": "Karthik Rao", "phone": "9900000002", "orders": [{"id": 2, "total": 1312.50, "created_at": "2026-10-26 11:14:25.500696", "delivery_at": "2026-09-15 17:00:00.000000", "order_status": "delivered"}], "address": "18 Residency Road, Bengaluru", "_metadata": {"etag": "75c632472094065a447d02fc03749031"}, "business_id": 1}
+
+ASSISTANT: The customer Karthik Rao (ID 2) was found. He has one previous order, which was delivered.
+[tokens this call: 1259 in, 23 out, 0 thinking]
+[tokens this message: 2295 in, 48 out, 0 thinking]
+
+USER: Create an order for Karthik Rao: 1 kg Vanilla Cake, delivery today at 5 pm
+[pacing: waiting 1.8s (free tier: 5 requests/min)]
+[tokens this call: 1304 in, 17 out, 0 thinking]
+
+TOOL CALL search_catalog: {"query": "Vanilla Cake"}
+TOOL RESULT: [{"_id": 2, "name": "Vanilla Cake", "price": 750.00, "is_mrp": 0, "gst_rate": 5.00, "variants": [{"id": 4, "size": 0.50, "unit": "kg", "price": 400.00, "flavor": "Vanilla"}, {"id": 5, "size": 1.00, "unit": "kg", "price": 750.00, "flavor": "Vanilla"}], "_metadata": {"etag": "7e7f375a7811e6f1e5875dd3b8cc3f65"}, "business_id": 1, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "max_discount_amount": null}]
+[pacing: waiting 11.7s (free tier: 5 requests/min)]
+
+ASSISTANT: For the 1 kg Vanilla Cake, here is the breakdown:
+
+*   **Price:** 750.00
+*   **GST (5%):** 37.50
+*   **Total:** 787.50
+
+The delivery is set for today, 2026-10-26 at 17:00:00. Does the customer agree to these details?
+[tokens this call: 1541 in, 93 out, 0 thinking]
+[tokens this message: 2845 in, 110 out, 0 thinking]
+
+USER: yes
+[tokens this call: 1637 in, 214 out, 0 thinking]
+
+TOOL CALL create_order: {"order": {"gst_value": 37.5, "outlet": {"id": 1}, "total": 787.5, "discount_type": "amount", "items": [{"gst_value": 37.5, "price": 750, "discount_exempt": 0, "flavor": "Vanilla", "qty": 1, "size": 1, "product_variant_id": 5, "is_gst_inclusive": 0, "gst_applicable": 1, "product": {"id": 2}, "unit": "kg", "name": "Vanilla Cake", "gst_rate": 5}], "delivery_at": "2026-10-26 17:00:00", "request_id": "ord-49281a92b21245b78b6680a6b7d19561", "discount_value": 0, "customer": {"id": 2}, "subtotal": 750}}
+TOOL RESULT: Created: 2 rows written. Read it back with get_order(request_id='ord-49281a92b21245b78b6680a6b7d19561').
+[pacing: waiting 11.6s (free tier: 5 requests/min)]
+[tokens this call: 1918 in, 51 out, 0 thinking]
+
+TOOL CALL get_order: {"request_id": "ord-49281a92b21245b78b6680a6b7d19561"}
+TOOL RESULT: {"_id": 6, "items": [{"id": 10, "qty": 1.00, "name": "Vanilla Cake", "size": 1.00, "unit": "kg", "notes": null, "price": 750.00, "flavor": "Vanilla", "product": {"id": 2, "name": "Vanilla Cake"}, "gst_rate": 5.00, "gst_value": 37.50, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": 5}], "total": 787.50, "outlet": {"id": 1, "name": "Sunrise Bakers - MG Road"}, "customer": {"id": 2, "name": "Karthik Rao", "phone": "9900000002"}, "payments": null, "subtotal": 750.00, "_metadata": {"etag": "b59fa765b077a4f629b7501f5c30d401"}, "gst_value": 37.50, "created_at": "2026-10-26 11:18:24.387095", "request_id": "ord-49281a92b21245b78b6680a6b7d19561", "balance_due": 787.50, "business_id": 1, "delivery_at": "2026-10-26 17:00:00.000000", "order_status": "draft", "discount_type": "amount", "discount_value": 0.00, "delivery_address": null, "cancellation_reason": null}
+[pacing: waiting 12.0s (free tier: 5 requests/min)]
+
+ASSISTANT: The order has been created successfully. The order ID is 6, and it is currently in 'draft' status. The balance due is 787.50.
+[tokens this call: 2439 in, 36 out, 0 thinking]
+[tokens this message: 5994 in, 301 out, 0 thinking]
+
+USER: Add a cash payment of 200 to that order
+[pacing: waiting 8.0s (free tier: 5 requests/min)]
+[tokens this call: 2489 in, 79 out, 0 thinking]
+
+TOOL CALL add_payment: {"order_id": 6, "payment": {"payment_type": "advance", "amount": 200, "request_id": "pay-92847a92b21245b78b6680a6b7d19562", "method": "cash"}}
+TOOL RESULT: Payment recorded: 1 row written.
+[pacing: waiting 11.7s (free tier: 5 requests/min)]
+
+ASSISTANT: The cash payment of 200 has been added to order ID 6.
+[tokens this call: 2589 in, 17 out, 0 thinking]
+[tokens this message: 5078 in, 96 out, 0 thinking]
+
+USER: Show me that order
+[pacing: waiting 9.8s (free tier: 5 requests/min)]
+[tokens this call: 2612 in, 16 out, 0 thinking]
+
+TOOL CALL get_order: {"order_id": 6}
+TOOL RESULT: {"_id": 6, "items": [{"id": 10, "qty": 1.00, "name": "Vanilla Cake", "size": 1.00, "unit": "kg", "notes": null, "price": 750.00, "flavor": "Vanilla", "product": {"id": 2, "name": "Vanilla Cake"}, "gst_rate": 5.00, "gst_value": 37.50, "discount_value": 0.00, "gst_applicable": 1, "discount_exempt": 0, "is_gst_inclusive": 0, "product_variant_id": 5}], "total": 787.50, "outlet": {"id": 1, "name": "Sunrise Bakers - MG Road"}, "customer": {"id": 2, "name": "Karthik Rao", "phone": "9900000002"}, "payments": [{"id": 7, "amount": 200.00, "method": "cash", "paid_at": "2026-10-26 11:19:03.228263", "request_id": "pay-92847a92b21245b78b6680a6b7d19562", "business_id": 1, "payment_type": "advance"}], "subtotal": 750.00, "_metadata": {"etag": "56d2b949078a9fd4ae2c1fc2b75297b3"}, "gst_value": 37.50, "created_at": "2026-10-26 11:18:24.387095", "request_id": "ord-49281a92b21245b78b6680a6b7d19561", "balance_due": 587.50, "business_id": 1, "delivery_at": "2026-10-26 17:00:00.000000", "order_status": "draft", "discount_type": "amount", "discount_value": 0.00, "delivery_address": null, "cancellation_reason": null}
+[pacing: waiting 12.0s (free tier: 5 requests/min)]
+
+ASSISTANT: Here is the summary of order ID 6:
+
+*   **Customer:** Karthik Rao
+*   **Item:** 1 kg Vanilla Cake
+*   **Status:** Draft
+*   **Total:** 787.50
+*   **Payments:** 200.00 (Cash)
+*   **Balance Due:** 587.50
+*   **Delivery:** 2026-10-26 17:00:00
+[tokens this call: 3208 in, 106 out, 0 thinking]
+[tokens this message: 5820 in, 122 out, 0 thinking]

@@ -296,8 +296,9 @@ that section only. The tools and SQL do not change.
 rule on `create_order` and a duplicate-open-order instruction in the system
 prompt. There is no default.
 
-Transcripts go to `results/agent_transcript.txt` (interactive; this is the
-output path in `agent/agent.py`, no such file is captured in the repo) or
+Transcripts go to `results/agent_transcript.txt` (interactive; overwritten on
+every run and not committed; a recorded sample session is committed as
+`results/agent_interactive_demo.txt`) or
 `results/agent_live_<provider>_<model>_<version>_<scenario>.txt` (live). API
 keys are redacted if they appear in error text.
 
