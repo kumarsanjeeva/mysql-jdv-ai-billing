@@ -29,8 +29,7 @@ reporting queries continue to use the base tables directly, as before.
 
 ## What the demo proves
 
-_(Planned: populated from real, captured test runs — see
-[`docs/findings.md`](docs/findings.md) once written.)_
+Captured outputs are in `results/`. The E-numbered tests, with expected and actual results, are in `docs/findings.md`.
 
 ## Quick start
 
@@ -46,8 +45,37 @@ _(Planned: populated from real, captured test runs — see
 | `python -m agent.scenarios`                     | `python -m agent.scenarios`                     |
 | `python -m agent.agent`                         | `python -m agent.agent`                         |
 
-`agent.scenarios` runs a scripted demo without an Anthropic API key.
-`agent.agent` is the interactive loop and requires `ANTHROPIC_API_KEY`.
+`agent.scenarios` runs a scripted demo without any LLM API key.
+`agent.agent` is the interactive loop. It needs three agent settings plus the API
+key for the provider you choose (see "Required settings" below).
+
+### Required settings (names only; put the values in `.env`, never in git)
+
+- MySQL connection: `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DB`. The SQL scripts also
+  use `MYSQL_USER` and `MYSQL_PASSWORD` (the admin account, `scripts/run_sql.py`).
+- Agent database account: `AGENT_DB_USER`, `AGENT_DB_PASSWORD`.
+- Agent settings, with **no default** (all three are in `.env.example`; the agent
+  stops with a message if one is missing):
+  `AGENT_PROVIDER` (`anthropic` or `gemini`), `AGENT_MODEL`, and
+  `AGENT_PROMPT_VERSION` (`v1` or `v2`).
+- The key for the provider you chose: `ANTHROPIC_API_KEY` for `anthropic`, or
+  `GEMINI_API_KEY` for `gemini`.
+- Optional: `AGENT_TODAY` (the date the model is told is today; default `2026-09-26`)
+  and `AGENT_BUSINESS_ID` (default `1`).
+
+A missing MySQL setting is **not** reported at startup. It shows up as a tool
+error (for example `Tool error (KeyError): 'MYSQL_HOST'`) on the agent's first tool
+call (`agent/db.py`, `agent/tools.py`).
+
+### Using the interactive agent
+
+- To leave: type `quit` or `exit`, press Enter on an empty line, or press Ctrl+C.
+- Every run overwrites `results/agent_transcript.txt` with that session; that file is
+  not committed. A recorded sample session is committed as
+  `results/agent_interactive_demo.txt`. It was recorded with `AGENT_TODAY=2026-10-26`,
+  so the model treated that date as today.
+- The agent sends the system prompt, the whole conversation and every tool result
+  (including any customer data) to the model provider you chose. Use seed data only.
 
 ## Repository layout
 
@@ -94,7 +122,8 @@ findings-based guidance.
 - An LLM API key, only for `agent.agent` and the live runs (not for
   `agent.scenarios` or the SQL demos). Set `AGENT_PROVIDER`, `AGENT_MODEL`
   and `AGENT_PROMPT_VERSION`, and the provider's key in `.env`:
-  `GEMINI_API_KEY` for `gemini` (the provider used in the captured live runs)
+  `ANTHROPIC_API_KEY` for `anthropic`, or `GEMINI_API_KEY` for `gemini` (the
+  provider used in the captured live runs).
 
 ## Documentation index
 

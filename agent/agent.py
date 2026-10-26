@@ -13,7 +13,7 @@
 #
 # Usage:
 #     python -m agent.agent
-# Type a message and press Enter; an empty line or "quit" ends the chat.
+# Type a message and press Enter; an empty line, "quit" or "exit" ends the chat (Ctrl+C also stops it).
 # Needs AGENT_PROVIDER ("anthropic" or "gemini"), AGENT_MODEL, AGENT_PROMPT_VERSION ("v1" or "v2") and that
 # provider's key (ANTHROPIC_API_KEY or GEMINI_API_KEY) in .env or the environment.
 
@@ -341,24 +341,37 @@ def answer(messages, log=log):
     return tuple(total)
 
 
+def read_line():
+    """Show the 'You: ' prompt (only at a real terminal) and return the next input line; '' means end of input."""
+    if sys.stdin.isatty():  # True only when a person is typing; False for piped or scripted input
+        print("You: ", end="", flush=True)  # the prompt; no newline so the cursor stays beside it
+    return sys.stdin.readline()  # one line; an empty string only when the input has ended
+
+
 def main():
-    """Run the chat until an empty line, 'quit', or end of input."""
+    """Run the chat until an empty line, 'quit', 'exit', end of input, or Ctrl+C."""
     TRANSCRIPT.parent.mkdir(exist_ok=True)
     TRANSCRIPT.write_text(f"# Billing assistant transcript -- provider {PROVIDER}, model {MODEL}\n"
                           f"# Prompt/tool-description version: {PROMPT_VERSION}\n"
                           f"# {THINKING_NOTE}\n"
                           f"# Retries: {RETRY_NOTE}\n# Pacing: {PACING_NOTE}\n", encoding="utf-8")
+    # The banner uses print (not log), so it appears on the screen only and never in the transcript file.
+    print(f"Billing assistant -- provider {PROVIDER}, model {MODEL}, prompt version {PROMPT_VERSION}")  # no keys or passwords
+    print("Type your request and press Enter. Type quit (or exit) to leave.")  # how to leave
     messages = []
     try:
-        for line in sys.stdin:
-            text = line.strip()
-            if not text or text.lower() == "quit":
-                break
+        while True:  # keep asking until a break below
+            line = read_line()  # prompt (terminal only) and read one line
+            text = line.strip()  # same trimming as before
+            if not text or text.lower() in ("quit", "exit"):  # empty line, end of input, "quit" or "exit" (any case)
+                break  # leave the chat
             log(f"\nUSER: {text}")
             messages.append({"role": "user", "content": text})
             answer(messages)
     except LLMError as e:
         sys.exit(f"Stopped: {e}")
+    except KeyboardInterrupt:  # Ctrl+C pressed
+        print("\nStopped.")  # one screen-only line; the transcript keeps what was logged; no traceback
 
 
 if __name__ == "__main__":

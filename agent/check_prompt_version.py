@@ -62,7 +62,7 @@ def read_version(version):
 
 def exit_text(env_extra):
     """Import agent.agent in a child with the given AGENT_PROMPT_VERSION setting; return (exit code, message)."""
-    env = {k: v for k, v in os.environ.items() if k != "AGENT_PROMPT_VERSION"}
+    env = {**os.environ, "AGENT_PROMPT_VERSION": ""}  # empty = unset to agent.py, and python-dotenv will not refill a name that is already present
     env.update(env_extra)
     r = subprocess.run([sys.executable, "-c", "from agent import agent"], env=env, capture_output=True, text=True)
     return r.returncode, (r.stderr or r.stdout).strip()
@@ -146,9 +146,10 @@ def main():
     print("PASS  guard: '--from L2' refuses when only the L3 file exists")
     names = [f"agent_live_gemini_gemini-3.1-flash-lite_{v}_{n}.txt" for v in ("v1", "v2")
              for n in ("L1_normal_order", "L2_price_pressure", "L3_wrong_business", "L4_idempotency", "L5_balance")]
-    clash = [n for n in names if (RESULTS / n).exists()]
-    assert not clash
-    print("PASS  none of the 10 new-pattern flash-lite names (v1/v2 x L1-L5) exists in results/ now; the five run-4 files are named *_v1_run4.txt")
+    # The real v1/v2 runs are committed now, so these ten files are expected to exist (this check once asserted the opposite).
+    missing = [n for n in names if not (RESULTS / n).exists()]  # any of the ten that is absent
+    assert not missing, missing  # fail, naming the absent files
+    print("PASS  the 10 final-name flash-lite files (v1/v2 x L1-L5) exist in results/")  # the old '*_v1_run4' claim is dropped: this code never checked it
 
     # 5. the version is required
     for extra, label in (({}, "unset"), ({"AGENT_PROMPT_VERSION": "v3"}, "v3")):
